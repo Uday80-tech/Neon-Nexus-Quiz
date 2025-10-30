@@ -1,24 +1,27 @@
 
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import useWindowSize from 'react-use/lib/useWindowSize';
 import Confetti from 'react-confetti';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 import { adjustQuizDifficulty, AdjustQuizDifficultyOutput } from '@/ai/flows/adjust-quiz-difficulty-dynamically';
 import { suggestPersonalizedLearningPaths, SuggestPersonalizedLearningPathsOutput } from '@/ai/flows/suggest-personalized-learning-paths';
+import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from '@/ai/flows/suggest-personalized-learning-paths';
+
+import { addDocumentNonBlocking, useFirestore, useUser } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { BrainCircuit, Home, Link as LinkIcon, Loader2, RefreshCw, Sparkles, Target } from 'lucide-react';
-import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from '@/ai/flows/suggest-personalized-learning-paths';
+import { cn } from '@/lib/utils';
 
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-
+// This is the core component that contains all the logic.
+// It's wrapped in a Suspense boundary in the main export.
 function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -27,59 +30,60 @@ function ResultPageContent() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const score = parseInt(searchParams.get('score') || '0', 10);
-  const total = parseInt(searchParams.get('total') || '0', 10);
-  const topic = searchParams.get('topic') || '';
-  const difficulty = searchParams.get('difficulty') || 'medium' as 'easy' | 'medium' | 'hard';
-  
   const [showConfetti, setShowConfetti] = useState(true);
+  const [isAiLoading, setIsAiLoading] = useState(true);
+  const [isDataSaved, setIsDataSaved] = useState(false);
+  
   const [aiDifficulty, setAiDifficulty] = useState<AdjustQuizDifficultyOutput | null>(null);
   const [aiLearningPath, setAiLearningPath] = useState<SuggestPersonalizedLearningPathsOutput | null>(null);
   const [sessionLearningResources, setSessionLearningResources] = useState<LearningResources['suggestedResources'] | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(true);
-  const [isDataSaved, setIsDataSaved] = useState(false);
+
+  // Memoize search param values to prevent re-renders
+  const { score, total, topic, difficulty } = useMemo(() => ({
+    score: parseInt(searchParams.get('score') || '0', 10),
+    total: parseInt(searchParams.get('total') || '0', 10),
+    topic: searchParams.get('topic') || '',
+    difficulty: (searchParams.get('difficulty') || 'medium') as 'easy' | 'medium' | 'hard',
+  }), [searchParams]);
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
-  
+  const scorePercentage = useMemo(() => Math.round(performance * 100), [performance]);
+
+  // --- Effects ---
+
   useEffect(() => {
+    // Redirect to login if user is not available after loading
     if (!isUserLoading && !user) {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
+    // Save quiz results to Firestore once
     if (user && firestore && total > 0 && !isDataSaved) {
-      const historyColRef = collection(firestore, `users/${user.uid}/quizHistory`);
-      addDocumentNonBlocking(historyColRef, {
+      const historyData = {
         topic: topic,
-        score: Math.round(performance * 100),
+        score: scorePercentage,
         totalQuestions: total,
-        completionTime: 0, 
+        completionTime: 0,
         completedAt: serverTimestamp(),
         date: new Date().toISOString(),
-      });
-      
-      const leaderboardColRef = collection(firestore, 'leaderboard');
-      addDocumentNonBlocking(leaderboardColRef, {
+      };
+      const leaderboardData = {
         userId: user.displayName || user.email,
-        score: Math.round(performance * 100),
+        score: scorePercentage,
         timestamp: serverTimestamp(),
-      });
+      };
 
+      addDocumentNonBlocking(collection(firestore, `users/${user.uid}/quizHistory`), historyData);
+      addDocumentNonBlocking(collection(firestore, 'leaderboard'), leaderboardData);
+      
       setIsDataSaved(true);
     }
-  }, [user, firestore, topic, performance, total, isDataSaved, score]);
-  
+  }, [user, firestore, topic, performance, total, isDataSaved, scorePercentage, score]);
+
   useEffect(() => {
-    if (topic !== 'custom-training') {
-      sessionStorage.removeItem('learningResources');
-    } else {
-      const resources = sessionStorage.getItem('learningResources');
-      if (resources) {
-        setSessionLearningResources(JSON.parse(resources));
-      }
-    }
-  
+    // Fetch AI feedback
     if (total > 0) {
       const getAiFeedback = async () => {
         setIsAiLoading(true);
@@ -87,12 +91,7 @@ function ResultPageContent() {
           const [difficultyResult, learningPathResult] = await Promise.all([
             adjustQuizDifficulty({ userPerformance: performance, currentDifficulty: difficulty }),
             suggestPersonalizedLearningPaths({
-              quizHistory: [{
-                topic: topic,
-                score: performance * 100,
-                questionsAnswered: score,
-                totalQuestions: total,
-              }],
+              quizHistory: [{ topic, score: scorePercentage, questionsAnswered: score, totalQuestions: total }],
             }),
           ]);
           setAiDifficulty(difficultyResult);
@@ -105,120 +104,145 @@ function ResultPageContent() {
       };
       getAiFeedback();
     } else {
-       setIsAiLoading(false);
+      setIsAiLoading(false);
     }
-  }, [performance, difficulty, topic, total, score]);
 
+    // Check for session-based learning resources (from training plans)
+    if (topic === 'custom-training') {
+      const resources = sessionStorage.getItem('learningResources');
+      if (resources) setSessionLearningResources(JSON.parse(resources));
+    } else {
+      sessionStorage.removeItem('learningResources');
+    }
+  }, [performance, difficulty, topic, total, score, scorePercentage]);
+  
   useEffect(() => {
+    // Stop confetti after a few seconds
     const timer = setTimeout(() => setShowConfetti(false), 8000);
     return () => clearTimeout(timer);
   }, []);
 
+  // --- Memos for display ---
+
   const performanceMessage = useMemo(() => {
-    if (performance >= 0.9) return "Outstanding! You're a true master!";
+    if (performance >= 0.9) return "Outstanding! A true master!";
     if (performance >= 0.7) return "Excellent work! You really know your stuff.";
     if (performance >= 0.5) return "Good job! A solid performance.";
     return "Nice try! Keep practicing to improve.";
   }, [performance]);
-  
+
   const learningResources = sessionLearningResources || aiLearningPath?.suggestedResources;
-  
+
+  // --- Render logic ---
+
+  // THIS IS THE FIX: Handle loading state with a dedicated return.
+  // This prevents the main JSX from being in an invalid state.
   if (isUserLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto max-w-4xl py-8 md:py-12 text-center">
-      {showConfetti && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} />}
-      
-      <Card className="bg-card/80 backdrop-blur-sm shadow-2xl shadow-primary/10 mb-8">
-        <CardHeader>
-          <Sparkles className="mx-auto h-12 w-12 text-primary animate-pulse" />
-          <CardTitle className="text-4xl md:text-5xl font-bold mt-4">Quiz Complete!</CardTitle>
-          <CardDescription className="text-lg text-foreground/70">{performanceMessage}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-6xl md:text-7xl font-bold text-primary my-4" style={{ textShadow: '0 0 10px hsl(var(--primary))' }}>
-            {score} / {total}
-          </p>
-          <p className="text-2xl font-semibold">
-            That's a score of {Math.round(performance * 100)}%
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="/topics" passHref>
-              <Button size="lg" className="font-bold">
-                <RefreshCw className="mr-2 h-4 w-4" /> Play Again
-              </Button>
-            </Link>
-            <Link href="/" passHref>
-              <Button size="lg" variant="outline">
-                <Home className="mr-2 h-4 w-4" /> Go to Home
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <div className="grid md:grid-cols-2 gap-8">
+    <>
+      {showConfetti && performance > 0.6 && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} />}
+      <div className="container mx-auto max-w-4xl py-8 md:py-12">
+        {/* Main Score Card */}
+        <Card className="text-center bg-card/80 backdrop-blur-sm shadow-2xl shadow-primary/10 mb-8 overflow-hidden">
+          <CardHeader className="pb-4">
+            <Sparkles className="mx-auto h-12 w-12 text-primary" style={{ filter: 'drop-shadow(0 0 10px hsl(var(--primary)))' }} />
+            <CardTitle className="text-4xl md:text-5xl font-bold mt-4">Quiz Complete!</CardTitle>
+            <CardDescription className="text-lg text-foreground/80">{performanceMessage}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="my-4">
+              <span className="text-6xl md:text-7xl font-bold text-primary" style={{ textShadow: '0 0 10px hsl(var(--primary))' }}>
+                {score}
+              </span>
+              <span className="text-4xl font-bold text-muted-foreground"> / {total}</span>
+            </div>
+            <div className="w-4/5 mx-auto bg-primary/20 text-primary font-bold text-xl rounded-full px-4 py-2">
+              Final Score: {scorePercentage}%
+            </div>
+            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+              <Link href="/topics" passHref>
+                <Button size="lg"><RefreshCw className="mr-2" /> Play Another</Button>
+              </Link>
+              <Link href="/" passHref>
+                <Button size="lg" variant="outline"><Home className="mr-2" /> Go Home</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI Feedback Section */}
         <Card className="text-left">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Target className="text-accent" /> AI Difficulty Suggestion</CardTitle>
+            <CardTitle className="text-2xl font-bold flex items-center gap-3"><BrainCircuit className="text-accent" /> AI Feedback</CardTitle>
+            <CardDescription>Personalized recommendations based on your performance.</CardDescription>
           </CardHeader>
           <CardContent>
             {isAiLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" />Analyzing performance...</div>
-            ) : aiDifficulty ? (
-              <>
-                <p className="text-muted-foreground">{aiDifficulty.reason}</p>
-                <p className="mt-2">Suggested next level: <span className="font-bold text-accent capitalize">{aiDifficulty.suggestedDifficulty}</span></p>
-              </>
+              <div className="flex justify-center items-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
             ) : (
-              <p className="text-muted-foreground">Could not generate AI difficulty suggestion.</p>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card className="text-left">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BrainCircuit className="text-accent" /> Personalized Learning Path</CardTitle>
-          </Header>
-          <CardContent>
-            {isAiLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" />Generating recommendations...</div>
-            ) : learningResources && learningResources.length > 0 ? (
-              <ul className="space-y-3">
-                {learningResources.map((res, index) => (
-                  <li key={index}>
-                    <a href={res.resourceLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline flex items-center gap-1">
-                      {res.resourceName} <LinkIcon className='w-3 h-3' />
-                    </a>
-                    <p className="text-sm text-muted-foreground">{res.reason}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">No specific learning resources to suggest at this time. Great job!</p>
+              <div className="grid md:grid-cols-2 gap-x-8 gap-y-6">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2"><Target /> Next Challenge</h3>
+                  <Separator className="my-2" />
+                  {aiDifficulty ? (
+                     <>
+                      <p className="mt-2 text-muted-foreground">{aiDifficulty.reason}</p>
+                      <p className="mt-2">Suggested level: <span className={cn('font-bold capitalize px-2 py-1 rounded-md', 
+                        aiDifficulty.suggestedDifficulty === 'easy' && 'bg-green-500/20 text-green-300',
+                        aiDifficulty.suggestedDifficulty === 'medium' && 'bg-yellow-500/20 text-yellow-300',
+                        aiDifficulty.suggestedDifficulty === 'hard' && 'bg-red-500/20 text-red-300'
+                        )}>{aiDifficulty.suggestedDifficulty}</span></p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Could not generate difficulty suggestion.</p>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2"><Sparkles className="text-sm" /> Learning Path</h3>
+                  <Separator className="my-2" />
+                  {learningResources && learningResources.length > 0 ? (
+                    <ul className="space-y-3 mt-2">
+                      {learningResources.map((res, index) => (
+                        <li key={index} className="text-sm">
+                          <a href={res.resourceLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline flex items-center gap-1.5">
+                            <LinkIcon className="w-3.5 h-3.5" /> {res.resourceName}
+                          </a>
+                          <p className="text-muted-foreground pl-5">{res.reason}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                     <p className="text-muted-foreground text-sm">No specific learning resources to suggest. Great job!</p>
+                  )}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }
 
-// Next.js's useSearchParams hook requires a Suspense boundary.
+// Main export with Suspense Boundary for useSearchParams
 export default function ResultPage() {
   return (
     <Suspense fallback={
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     }>
       <ResultPageContent />
     </Suspense>
-  )
+  );
 }
