@@ -47,7 +47,7 @@ export default function ResultPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (user && firestore && total > 0) {
+    if (user && firestore && total > 0 && score) {
       // Save quiz history
       const historyColRef = collection(firestore, `users/${user.uid}/quizHistory`);
       addDocumentNonBlocking(historyColRef, {
