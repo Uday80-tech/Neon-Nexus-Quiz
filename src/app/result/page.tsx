@@ -201,7 +201,7 @@ function ResultPageContent() {
           </CardHeader>
           <CardContent>
             <div className="my-4">
-              <span className="text-6xl md:text-7xl font-bold text-primary" style={{ textShadow: '0 0 10px hsl(var(--primary))) }}>
+              <span className="text-6xl md:text-7xl font-bold text-primary" style={{ textShadow: '0 0 10px hsl(var(--primary)))' }}>
                 {score}
               </span>
               <span className="text-4xl font-bold text-muted-foreground"> / {total}</span>
