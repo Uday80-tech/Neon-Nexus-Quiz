@@ -12,7 +12,7 @@ import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
 
 const QUESTION_TIME_LIMIT = 15; // seconds
 
-export default function QuizClient({ questions, topic }: { questions: Question[], topic: Topic }) {
+export default function QuizClient({ questions, topic }: { questions: Question[], topic: Omit<Topic, 'icon'> }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);

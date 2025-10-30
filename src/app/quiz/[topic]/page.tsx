@@ -20,6 +20,8 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
   if (!quizQuestions || !topicData) {
     notFound();
   }
+  
+  const { icon, ...serializableTopicData } = topicData;
 
   if (quizQuestions.length === 0) {
     return (
@@ -44,5 +46,5 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
     )
   }
 
-  return <QuizClient questions={quizQuestions} topic={topicData} />;
+  return <QuizClient questions={quizQuestions} topic={serializableTopicData} />;
 }
