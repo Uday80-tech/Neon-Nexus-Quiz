@@ -33,7 +33,7 @@ export default function Home() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      topic: 'General Knowledge',
+      topic: '',
       numQuestions: 5,
       difficulty: 'medium',
     },
@@ -42,7 +42,7 @@ export default function Home() {
   const trainingForm = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      topic: 'Machine Learning',
+      topic: '',
       numQuestions: 3,
       difficulty: 'easy',
     },
