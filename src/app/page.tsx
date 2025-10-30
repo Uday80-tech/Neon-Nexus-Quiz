@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const formSchema = z.object({
   topic: z.string().min(2, { message: 'Topic must be at least 2 characters.' }),
-  numQuestions: z.coerce.number().int().min(1, 'Please enter at least 1 question.').max(10, 'You can generate a maximum of 10 questions.'),
+  numQuestions: z.coerce.number().int().min(1, 'Please enter at least 1 question.').max(100, 'You can generate a maximum of 100 questions.'),
   difficulty: z.enum(['easy', 'medium', 'hard']),
 });
 
@@ -180,7 +180,7 @@ export default function Home() {
                           <FormItem>
                             <FormLabel># of Questions</FormLabel>
                             <FormControl>
-                              <Input type="number" min="1" max="10" {...field} className="text-base"/>
+                              <Input type="number" min="1" max="100" {...field} className="text-base"/>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -229,14 +229,98 @@ export default function Home() {
                 </Form>
               </DialogContent>
             </Dialog>
-            <Button
-              size="lg"
-              variant="outline"
-              className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
-              onClick={() => router.push('/topics')}
-            >
-              <BrainCircuit className="mr-2"/> Pre-made Quizzes
-            </Button>
+            <Dialog open={isTrainingDialogOpen} onOpenChange={setIsTrainingDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
+                >
+                  <BrainCircuit className="mr-2"/> Train Your Mind
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card/90 backdrop-blur-lg">
+                <DialogHeader>
+                  <DialogTitle>AI Training Plan</DialogTitle>
+                  <DialogDescription>
+                    Our AI will generate a short quiz and personalized learning resources to help you master a new topic.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...trainingForm}>
+                  <form 
+                    onSubmit={trainingForm.handleSubmit(onTrainingSubmit)} 
+                    className="grid gap-4 py-4"
+                  >
+                    <FormField
+                      control={trainingForm.control}
+                      name="topic"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Training Topic</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Quantum Physics" {...field} className="text-base"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={trainingForm.control}
+                        name="numQuestions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel># of Questions</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" max="100" {...field} className="text-base"/>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={trainingForm.control}
+                        name="difficulty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Difficulty</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="text-base">
+                                  <SelectValue placeholder="Select difficulty" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="easy">Easy</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <Button 
+                      type="submit"
+                      className="w-full font-bold text-lg mt-4 bg-accent text-accent-foreground hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-[0_0_15px_rgba(157,93,249,0.6)] hover:shadow-[0_0_25px_rgba(157,93,249,0.9)]"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 animate-spin" />
+                          Generating Plan...
+                        </>
+                      ) : (
+                        <>
+                          Start Training <ArrowRight className="ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
         </div>
       </div>
     </div>
