@@ -1,6 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useUser, useAuth as useFirebaseAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+
 
 type User = {
   name: string;
@@ -17,22 +21,46 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { user: firebaseUser, isUserLoading } = useUser();
+  const firebaseAuth = useFirebaseAuth();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
+  useEffect(() => {
+    if (!isUserLoading) {
+      if (firebaseUser) {
+        setUser({
+          name: firebaseUser.displayName || firebaseUser.email || 'Anonymous',
+          email: firebaseUser.email || '',
+        });
+      } else {
+        setUser(null);
+      }
+    }
+  }, [firebaseUser, isUserLoading]);
+
   const login = (name: string, email: string) => {
-    setUser({ name, email });
+    // This will be handled by Firebase now
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    await signOut(firebaseAuth);
+    router.push('/');
   };
 
   const signup = (name: string, email: string) => {
-    setUser({ name, email });
+    // This will be handled by Firebase now
+  };
+
+  const value = {
+    user,
+    login,
+    logout,
+    signup
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -24,6 +24,9 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import ThreeScene from "@/components/ThreeScene";
+import { initiateEmailSignIn } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { FirebaseError } from 'firebase/app';
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -31,8 +34,9 @@ const formSchema = z.object({
 });
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const auth = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,11 +46,30 @@ export default function LoginPage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // Simulate login by extracting a name from the email
-    const name = values.email.split('@')[0];
-    login(name, values.email);
-    router.push("/");
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      await initiateEmailSignIn(auth, values.email, values.password);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      let description = "An unexpected error occurred. Please try again.";
+      if (error instanceof FirebaseError) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+            description = 'Invalid email or password.';
+            break;
+          case 'auth/invalid-email':
+            description = 'Please enter a valid email address.';
+            break;
+        }
+      }
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description,
+      });
+    }
   }
 
   return (

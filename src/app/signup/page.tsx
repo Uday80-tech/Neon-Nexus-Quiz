@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -24,6 +24,12 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import ThreeScene from "@/components/ThreeScene";
+import { initiateEmailSignUp, setDocumentNonBlocking } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { FirebaseError } from "firebase/app";
+import { doc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -32,8 +38,10 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
-  const { signup } = useAuth();
+  const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -44,9 +52,40 @@ export default function SignupPage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    signup(values.name, values.email);
-    router.push("/");
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
+      if (userCredential && userCredential.user && firestore) {
+        const userRef = doc(firestore, `users/${userCredential.user.uid}`);
+        setDocumentNonBlocking(userRef, {
+          username: values.name,
+          email: values.email,
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      }
+      router.push("/");
+    } catch (error: any) {
+      console.error("Sign up failed:", error);
+      let description = "An unexpected error occurred. Please try again.";
+      if (error instanceof FirebaseError) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            description = 'This email address is already in use.';
+            break;
+          case 'auth/invalid-email':
+            description = 'Please enter a valid email address.';
+            break;
+          case 'auth/weak-password':
+            description = 'The password is too weak. Please choose a stronger password.';
+            break;
+        }
+      }
+      toast({
+        variant: "destructive",
+        title: "Sign Up Failed",
+        description,
+      });
+    }
   }
 
   return (

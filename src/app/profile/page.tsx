@@ -2,26 +2,40 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BrainCircuit, ChevronRight, LineChart, Loader2 } from 'lucide-react';
-import { quizHistoryData } from '@/lib/quiz-history-data';
 import { suggestPersonalizedQuizzes, SuggestPersonalizedQuizzesOutput } from '@/ai/flows/suggest-personalized-quizzes';
 import { topics } from '@/lib/quiz-data';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { CartesianGrid, Line, XAxis, YAxis, ResponsiveContainer, LineChart as RechartsLineChart, Tooltip } from 'recharts';
+import type { QuizHistoryEntry } from '@/lib/quiz-history-data';
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const firestore = useFirestore();
+  
   const [suggestions, setSuggestions] = useState<SuggestPersonalizedQuizzesOutput | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+
+  const quizHistoryQuery = useMemoFirebase(
+    () =>
+      user && firestore
+        ? query(collection(firestore, `users/${user.uid}/quizHistory`), orderBy('completedAt', 'desc'))
+        : null,
+    [user, firestore]
+  );
+
+  const { data: quizHistoryData, isLoading: isLoadingHistory } = useCollection<QuizHistoryEntry>(quizHistoryQuery);
 
   const chartData = useMemo(() => {
+    if (!quizHistoryData) return [];
     return quizHistoryData
       .slice() // Create a copy to avoid mutating the original array
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -29,7 +43,7 @@ export default function ProfilePage() {
         date: format(new Date(item.date), 'MMM d'),
         score: item.score,
       }));
-  }, []);
+  }, [quizHistoryData]);
 
   const chartConfig = {
     score: {
@@ -39,15 +53,15 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
-    if (!user) {
+    if (!isUserLoading && !user) {
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, isUserLoading, router]);
   
   useEffect(() => {
-    if (user) {
+    if (user && quizHistoryData) {
       const getSuggestions = async () => {
-        setIsLoading(true);
+        setIsLoadingSuggestions(true);
         try {
           const aiInput = {
             quizHistory: quizHistoryData.map(h => ({
@@ -64,14 +78,14 @@ export default function ProfilePage() {
           console.error("Failed to get AI suggestions:", error);
           setSuggestions(null);
         } finally {
-          setIsLoading(false);
+          setIsLoadingSuggestions(false);
         }
       };
       getSuggestions();
     }
-  }, [user]);
+  }, [user, quizHistoryData]);
 
-  if (!user) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -87,11 +101,11 @@ export default function ProfilePage() {
           <Card>
             <CardHeader className="flex-row items-center gap-4">
               <Avatar className="h-20 w-20 border-2 border-primary">
-                <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${user.email}`} alt={user.name} />
-                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${user.email}`} alt={user.displayName || user.email || ''} />
+                <AvatarFallback>{user.displayName?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-3xl">{user.name}</CardTitle>
+                <CardTitle className="text-3xl">{user.displayName || 'Anonymous User'}</CardTitle>
                 <CardDescription className="text-base">{user.email}</CardDescription>
               </div>
             </CardHeader>
@@ -106,6 +120,11 @@ export default function ProfilePage() {
               <CardDescription>Your quiz score performance over time.</CardDescription>
             </CardHeader>
             <CardContent>
+             {isLoadingHistory ? (
+                 <div className="flex items-center justify-center h-[250px]">
+                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                 </div>
+              ) : chartData.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[250px] w-full">
                 <RechartsLineChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                   <CartesianGrid vertical={false} />
@@ -150,6 +169,9 @@ export default function ProfilePage() {
                   />
                 </RechartsLineChart>
               </ChartContainer>
+               ) : (
+                <p className="text-center text-muted-foreground h-[250px] flex items-center justify-center">No quiz history yet. Play a game to see your progress!</p>
+              )}
             </CardContent>
           </Card>
 
@@ -159,24 +181,32 @@ export default function ProfilePage() {
               <CardDescription>Your recent quiz performance.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Topic</TableHead>
-                    <TableHead className="text-center">Score</TableHead>
-                    <TableHead className="text-right">Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {quizHistoryData.map((history, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{history.topic}</TableCell>
-                      <TableCell className="text-center">{history.score}%</TableCell>
-                      <TableCell className="text-right">{format(new Date(history.date), 'MMM d, yyyy')}</TableCell>
+              {isLoadingHistory ? (
+                 <div className="flex items-center justify-center h-24">
+                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                 </div>
+              ) : quizHistoryData && quizHistoryData.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Topic</TableHead>
+                      <TableHead className="text-center">Score</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {quizHistoryData.map((history) => (
+                      <TableRow key={history.id}>
+                        <TableCell className="font-medium">{history.topic}</TableCell>
+                        <TableCell className="text-center">{history.score}%</TableCell>
+                        <TableCell className="text-right">{format(new Date(history.date), 'MMM d, yyyy')}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-center text-muted-foreground h-24 flex items-center justify-center">No quiz history to display.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -188,11 +218,11 @@ export default function ProfilePage() {
               <CardDescription>We think you should try these topics next!</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoadingSuggestions ? (
                 <div className="flex items-center justify-center h-24">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : suggestions && suggestions.suggestedQuizzes.length > 0 ? (
+              ) : suggestions && suggestions.suggestedQuizzes && suggestions.suggestedQuizzes.length > 0 ? (
                 <ul className="space-y-3">
                   {suggestions.suggestedQuizzes.map((quiz, index) => {
                     const topicInfo = topics.find(t => t.name === quiz.topic);

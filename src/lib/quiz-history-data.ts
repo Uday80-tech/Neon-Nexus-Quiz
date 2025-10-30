@@ -1,8 +1,10 @@
 export type QuizHistoryEntry = {
+  id?: string;
   topic: string;
   score: number; // as a percentage
   totalQuestions: number;
   date: string; // YYYY-MM-DD
+  completedAt?: any;
 };
 
 export const quizHistoryData: QuizHistoryEntry[] = [
