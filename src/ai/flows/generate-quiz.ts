@@ -10,11 +10,12 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const GenerateQuizInputSchema = z.object({
   topic: z.string().describe('The topic for the quiz.'),
   numberOfQuestions: z.number().int().positive().describe('The number of questions to generate for the quiz.'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).describe('The difficulty level of the quiz.'),
 });
 export type GenerateQuizInput = z.infer<typeof GenerateQuizInputSchema>;
 
@@ -40,9 +41,10 @@ const prompt = ai.definePrompt({
   input: { schema: GenerateQuizInputSchema },
   output: { schema: GenerateQuizOutputSchema },
   prompt: `You are a quiz generation AI. Generate a quiz with {{numberOfQuestions}} questions about the topic: "{{topic}}".
+The questions should be of "{{difficulty}}" difficulty.
 Each question must have exactly 4 options.
 The 'correctAnswer' field must be the index (0-3) of the correct option in the 'options' array.
-Determine a suitable difficulty ('easy', 'medium', or 'hard') for each question based on the topic and question complexity.
+Set the 'difficulty' field for each question to be "{{difficulty}}".
 `,
 });
 

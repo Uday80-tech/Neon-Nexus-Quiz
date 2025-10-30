@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ThreeScene from '@/components/ThreeScene';
 import { ArrowRight, BrainCircuit, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const formSchema = z.object({
   topic: z.string().min(2, { message: 'Topic must be at least 2 characters.' }),
   numQuestions: z.coerce.number().int().min(1, 'Please enter at least 1 question.').max(10, 'You can generate a maximum of 10 questions.'),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
 });
 
 export default function Home() {
@@ -31,6 +33,7 @@ export default function Home() {
     defaultValues: {
       topic: 'General Knowledge',
       numQuestions: 5,
+      difficulty: 'medium',
     },
   });
 
@@ -40,6 +43,7 @@ export default function Home() {
       const quizResult = await generateQuiz({
         topic: values.topic,
         numberOfQuestions: values.numQuestions,
+        difficulty: values.difficulty,
       });
 
       if (quizResult.error) {
@@ -51,7 +55,7 @@ export default function Home() {
       }
 
       sessionStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
-      const topicData = { name: values.topic, slug: 'custom', difficulty: 'custom' };
+      const topicData = { name: values.topic, slug: 'custom', difficulty: values.difficulty };
       sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
       
       setIsDialogOpen(false);
@@ -125,19 +129,43 @@ export default function Home() {
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="numQuestions"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel># of Questions</FormLabel>
-                          <FormControl>
-                            <Input type="number" min="1" max="10" {...field} className="text-base"/>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="numQuestions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel># of Questions</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" max="10" {...field} className="text-base"/>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="difficulty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Difficulty</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="text-base">
+                                  <SelectValue placeholder="Select difficulty" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="easy">Easy</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                     <Button 
                       type="submit"
                       className="w-full font-bold text-lg mt-4 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 shadow-[0_0_15px_rgba(52,209,191,0.6)] hover:shadow-[0_0_25px_rgba(52,209,191,0.9)]"
