@@ -36,41 +36,37 @@ export default function ResultPage() {
   const [aiDifficulty, setAiDifficulty] = useState<AdjustQuizDifficultyOutput | null>(null);
   const [aiLearningPath, setAiLearningPath] = useState<SuggestPersonalizedLearningPathsOutput | null>(null);
   const [sessionLearningResources, setSessionLearningResources] = useState<LearningResources['suggestedResources'] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAiLoading, setIsAiLoading] = useState(true);
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
   
   useEffect(() => {
-    // Redirect if no user and not loading
     if (!isUserLoading && !user) {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (user && firestore && total > 0) { // check total > 0
-      // Save quiz history
+    if (user && firestore && total > 0) {
       const historyColRef = collection(firestore, `users/${user.uid}/quizHistory`);
       addDocumentNonBlocking(historyColRef, {
         topic: topic,
         score: Math.round(performance * 100),
         totalQuestions: total,
-        completionTime: 0, // Placeholder
+        completionTime: 0,
         completedAt: serverTimestamp(),
         date: new Date().toISOString(),
       });
-       // Save to leaderboard
-       const leaderboardColRef = collection(firestore, 'leaderboard');
-       addDocumentNonBlocking(leaderboardColRef, {
-         userId: user.uid,
-         score: Math.round(performance * 100),
-         timestamp: serverTimestamp(),
-       });
+      const leaderboardColRef = collection(firestore, 'leaderboard');
+      addDocumentNonBlocking(leaderboardColRef, {
+        userId: user.uid,
+        score: Math.round(performance * 100),
+        timestamp: serverTimestamp(),
+      });
     }
-  }, [user, firestore, topic, score, total, performance]);
+  }, [user, firestore, topic, performance, total]);
   
   useEffect(() => {
-    // Clear learning resources from previous sessions
     if (topic !== 'custom-training') {
       sessionStorage.removeItem('learningResources');
     } else {
@@ -82,7 +78,7 @@ export default function ResultPage() {
   
     if (total > 0) {
       const getAiFeedback = async () => {
-        setIsLoading(true);
+        setIsAiLoading(true);
         try {
           const [difficultyResult, learningPathResult] = await Promise.all([
             adjustQuizDifficulty({ userPerformance: performance, currentDifficulty: difficulty }),
@@ -100,15 +96,14 @@ export default function ResultPage() {
         } catch (error) {
           console.error("Failed to get AI feedback:", error);
         } finally {
-          setIsLoading(false);
+          setIsAiLoading(false);
         }
       };
       getAiFeedback();
     } else {
-       setIsLoading(false);
+       setIsAiLoading(false);
     }
   }, [performance, difficulty, topic, total, score]);
-
 
   useEffect(() => {
     const timer = setTimeout(() => setShowConfetti(false), 8000);
@@ -170,7 +165,7 @@ export default function ResultPage() {
             <CardTitle className="flex items-center gap-2"><Target className="text-accent" /> AI Difficulty Suggestion</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isAiLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" />Analyzing performance...</div>
             ) : aiDifficulty ? (
               <>
@@ -188,7 +183,7 @@ export default function ResultPage() {
             <CardTitle className="flex items-center gap-2"><BrainCircuit className="text-accent" /> Personalized Learning Path</CardTitle>
           </Header>
           <CardContent>
-            {isLoading ? (
+            {isAiLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" />Generating recommendations...</div>
             ) : learningResources && learningResources.length > 0 ? (
               <ul className="space-y-3">
