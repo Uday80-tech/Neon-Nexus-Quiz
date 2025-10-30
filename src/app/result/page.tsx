@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useSearchParams } from 'next/navigation';
@@ -47,7 +48,7 @@ export default function ResultPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (user && firestore && total > 0 && score) {
+    if (user && firestore && total > 0) { // check total > 0
       // Save quiz history
       const historyColRef = collection(firestore, `users/${user.uid}/quizHistory`);
       addDocumentNonBlocking(historyColRef, {
@@ -89,7 +90,7 @@ export default function ResultPage() {
               quizHistory: [{
                 topic: topic,
                 score: performance * 100,
-                questionsAnswered: total,
+                questionsAnswered: score,
                 totalQuestions: total,
               }],
             }),
@@ -106,7 +107,7 @@ export default function ResultPage() {
     } else {
        setIsLoading(false);
     }
-  }, [performance, difficulty, topic, total]);
+  }, [performance, difficulty, topic, total, score]);
 
 
   useEffect(() => {
