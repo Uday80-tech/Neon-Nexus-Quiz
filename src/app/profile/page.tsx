@@ -1,13 +1,14 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BrainCircuit, ChevronRight, LineChart, Loader2 } from 'lucide-react';
+import { BrainCircuit, ChevronRight, LineChart, Loader2, Trash2, ShieldAlert } from 'lucide-react';
 import { suggestPersonalizedQuizzes, SuggestPersonalizedQuizzesOutput } from '@/ai/flows/suggest-personalized-quizzes';
 import { topics } from '@/lib/quiz-data';
 import Link from 'next/link';
@@ -15,11 +16,26 @@ import { format } from 'date-fns';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { CartesianGrid, Line, XAxis, YAxis, ResponsiveContainer, LineChart as RechartsLineChart, Tooltip } from 'recharts';
 import type { QuizHistoryEntry } from '@/lib/quiz-history-data';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { useToast } from '@/hooks/use-toast';
+
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const { toast } = useToast();
   
   const [suggestions, setSuggestions] = useState<SuggestPersonalizedQuizzesOutput | null>(null);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
@@ -38,7 +54,7 @@ export default function ProfilePage() {
     if (!quizHistoryData) return [];
     return quizHistoryData
       .slice() // Create a copy to avoid mutating the original array
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime())
       .map(item => ({
         date: format(new Date(item.date), 'MMM d'),
         score: item.score,
@@ -62,6 +78,11 @@ export default function ProfilePage() {
     if (user && quizHistoryData) {
       const getSuggestions = async () => {
         setIsLoadingSuggestions(true);
+        if (quizHistoryData.length === 0) {
+            setSuggestions(null);
+            setIsLoadingSuggestions(false);
+            return;
+        }
         try {
           const aiInput = {
             quizHistory: quizHistoryData.map(h => ({
@@ -82,8 +103,53 @@ export default function ProfilePage() {
         }
       };
       getSuggestions();
+    } else if (!isLoadingHistory) {
+      setIsLoadingSuggestions(false);
     }
-  }, [user, quizHistoryData]);
+  }, [user, quizHistoryData, isLoadingHistory]);
+  
+  const handleDeleteHistory = async (historyId: string) => {
+    if (!user || !firestore) return;
+    const docRef = doc(firestore, `users/${user.uid}/quizHistory`, historyId);
+    try {
+      await deleteDoc(docRef);
+      toast({
+        title: "History Deleted",
+        description: "The quiz history entry has been removed.",
+      });
+    } catch (error) {
+      console.error("Error deleting history:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not delete the history entry.",
+      });
+    }
+  };
+
+  const handleClearAllHistory = async () => {
+    if (!user || !firestore) return;
+    const historyCollectionRef = collection(firestore, `users/${user.uid}/quizHistory`);
+    try {
+      const querySnapshot = await getDocs(historyCollectionRef);
+      const batch = writeBatch(firestore);
+      querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      toast({
+        title: "History Cleared",
+        description: "All quiz history entries have been removed.",
+      });
+    } catch (error) {
+      console.error("Error clearing all history:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not clear all history entries.",
+      });
+    }
+  };
 
   if (isUserLoading || !user) {
     return (
@@ -177,8 +243,39 @@ export default function ProfilePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Quiz History</CardTitle>
-              <CardDescription>Your recent quiz performance.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Quiz History</CardTitle>
+                        <CardDescription>Your recent quiz performance.</CardDescription>
+                    </div>
+                    {quizHistoryData && quizHistoryData.length > 0 && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Clear All
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete all of
+                                        your quiz history.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleClearAllHistory}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                        Yes, delete everything
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
               {isLoadingHistory ? (
@@ -191,7 +288,8 @@ export default function ProfilePage() {
                     <TableRow>
                       <TableHead>Topic</TableHead>
                       <TableHead className="text-center">Score</TableHead>
-                      <TableHead className="text-right">Date</TableHead>
+                      <TableHead className="text-center">Date</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -199,7 +297,17 @@ export default function ProfilePage() {
                       <TableRow key={history.id}>
                         <TableCell className="font-medium">{history.topic}</TableCell>
                         <TableCell className="text-center">{history.score}%</TableCell>
-                        <TableCell className="text-right">{format(new Date(history.date), 'MMM d, yyyy')}</TableCell>
+                        <TableCell className="text-center">{format(new Date(history.date), 'MMM d, yyyy')}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteHistory(history.id)}
+                            aria-label="Delete history item"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive/70 hover:text-destructive" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
