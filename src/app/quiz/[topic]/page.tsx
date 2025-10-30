@@ -18,7 +18,6 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
   const router = useRouter();
   
   useEffect(() => {
-    // It's safer to access params.topic inside useEffect
     const currentTopic = params.topic;
 
     if (currentTopic === 'custom' || currentTopic === 'custom-training') {
