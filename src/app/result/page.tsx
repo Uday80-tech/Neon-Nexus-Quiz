@@ -53,14 +53,20 @@ function ResultPageContent() {
 
   const topicName = useMemo(() => {
     if (topicSlug === 'custom' || topicSlug === 'custom-training') {
-      const storedTopic = sessionStorage.getItem('quizTopic');
-      if (storedTopic) {
-        return JSON.parse(storedTopic).name;
+      try {
+        const storedTopic = sessionStorage.getItem('quizTopic');
+        if (storedTopic) {
+          const parsedTopic = JSON.parse(storedTopic);
+          return parsedTopic.name || topicSlug;
+        }
+      } catch (error) {
+        console.error("Could not parse quizTopic from sessionStorage:", error);
       }
     }
     const staticTopic = staticTopics.find(t => t.slug === topicSlug);
     return staticTopic?.name || topicSlug;
   }, [topicSlug]);
+
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
   const scorePercentage = useMemo(() => Math.round(performance * 100), [performance]);
@@ -283,5 +289,3 @@ export default function ResultPage() {
     </Suspense>
   );
 }
-
-    
