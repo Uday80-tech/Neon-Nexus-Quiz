@@ -35,13 +35,13 @@ export default function Home() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      const quizQuestions = await generateQuiz({
+      const quizResult = await generateQuiz({
         topic: values.topic,
         numberOfQuestions: values.numQuestions,
       });
 
       // Store questions and topic in session storage to pass to the quiz page
-      sessionStorage.setItem('quizQuestions', JSON.stringify(quizQuestions.questions));
+      sessionStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
       sessionStorage.setItem('quizTopic', JSON.stringify({ name: values.topic, slug: 'custom', difficulty: 'custom' }));
       
       router.push('/quiz/custom');
