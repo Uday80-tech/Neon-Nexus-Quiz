@@ -1,1 +1,6 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/adjust-quiz-difficulty-dynamically.ts';
+import '@/ai/flows/suggest-personalized-learning-paths.ts';
+import '@/ai/flows/suggest-personalized-quizzes.ts';
