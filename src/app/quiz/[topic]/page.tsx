@@ -20,27 +20,35 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
   useEffect(() => {
     const currentTopic = params.topic;
 
-    if (currentTopic === 'custom' || currentTopic === 'custom-training') {
-      const storedQuestions = sessionStorage.getItem('quizQuestions');
-      const storedTopic = sessionStorage.getItem('quizTopic');
-      
-      if (storedQuestions && storedTopic) {
-        setQuizQuestions(JSON.parse(storedQuestions));
-        setTopicData(JSON.parse(storedTopic));
+    if (currentTopic) {
+      if (currentTopic === 'custom' || currentTopic === 'custom-training') {
+        const storedQuestions = sessionStorage.getItem('quizQuestions');
+        const storedTopic = sessionStorage.getItem('quizTopic');
+        
+        if (storedQuestions && storedTopic) {
+          try {
+            setQuizQuestions(JSON.parse(storedQuestions));
+            setTopicData(JSON.parse(storedTopic));
+          } catch (e) {
+            console.error("Failed to parse session storage data", e);
+            router.push('/');
+            return;
+          }
+        } else {
+          // If no data, redirect to home to create a new quiz
+          router.push('/');
+          return;
+        }
       } else {
-        // If no data, redirect to home to create a new quiz
-        router.push('/');
-        return;
+        const staticTopicData = topics.find((t) => t.slug === currentTopic);
+        if (staticTopicData) {
+          const { icon, ...serializableTopicData } = staticTopicData;
+          setTopicData(serializableTopicData);
+          setQuizQuestions(questions[currentTopic] || []);
+        }
       }
-    } else {
-      const staticTopicData = topics.find((t) => t.slug === currentTopic);
-      if (staticTopicData) {
-        const { icon, ...serializableTopicData } = staticTopicData;
-        setTopicData(serializableTopicData);
-        setQuizQuestions(questions[currentTopic] || []);
-      }
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [params.topic, router]);
 
   if (isLoading) {
