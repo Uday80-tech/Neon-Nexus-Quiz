@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { BrainCircuit, Home, Link as LinkIcon, Loader2, RefreshCw, Sparkles, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { topics as staticTopics } from '@/lib/quiz-data';
 
 // This is the core component that contains all the logic.
 // It's wrapped in a Suspense boundary in the main export.
@@ -43,12 +44,23 @@ function ResultPageContent() {
   const [sessionLearningResources, setSessionLearningResources] = useState<LearningResources['suggestedResources'] | null>(null);
 
   // Memoize search param values to prevent re-renders
-  const { score, total, topic, difficulty } = useMemo(() => ({
+  const { score, total, topicSlug, difficulty } = useMemo(() => ({
     score: parseInt(searchParams.get('score') || '0', 10),
     total: parseInt(searchParams.get('total') || '0', 10),
-    topic: searchParams.get('topic') || '',
+    topicSlug: searchParams.get('topic') || '',
     difficulty: (searchParams.get('difficulty') || 'medium') as 'easy' | 'medium' | 'hard',
   }), [searchParams]);
+
+  const topicName = useMemo(() => {
+    if (topicSlug === 'custom' || topicSlug === 'custom-training') {
+      const storedTopic = sessionStorage.getItem('quizTopic');
+      if (storedTopic) {
+        return JSON.parse(storedTopic).name;
+      }
+    }
+    const staticTopic = staticTopics.find(t => t.slug === topicSlug);
+    return staticTopic?.name || topicSlug;
+  }, [topicSlug]);
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
   const scorePercentage = useMemo(() => Math.round(performance * 100), [performance]);
@@ -68,7 +80,7 @@ function ResultPageContent() {
       if (user && firestore && total > 0 && !isDataSaved) {
         // Save private quiz history
         const historyData = {
-          topic: topic,
+          topic: topicName,
           score: scorePercentage,
           totalQuestions: total,
           completionTime: 0, 
@@ -88,7 +100,7 @@ function ResultPageContent() {
           }
 
           const leaderboardData = {
-            userId: user.displayName || user.email,
+            userId: user.displayName || user.email || 'Anonymous',
             totalScore: newTotalScore,
             lastPlayed: serverTimestamp(),
           };
@@ -109,7 +121,7 @@ function ResultPageContent() {
       }
     };
     saveResults();
-  }, [user, firestore, topic, total, isDataSaved, scorePercentage, score, toast]);
+  }, [user, firestore, topicName, total, isDataSaved, scorePercentage, score, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -120,7 +132,7 @@ function ResultPageContent() {
           const [difficultyResult, learningPathResult] = await Promise.all([
             adjustQuizDifficulty({ userPerformance: performance, currentDifficulty: difficulty }),
             suggestPersonalizedLearningPaths({
-              quizHistory: [{ topic, score: scorePercentage, questionsAnswered: score, totalQuestions: total }],
+              quizHistory: [{ topic: topicName, score: scorePercentage, questionsAnswered: score, totalQuestions: total }],
             }),
           ]);
           setAiDifficulty(difficultyResult);
@@ -143,7 +155,7 @@ function ResultPageContent() {
       sessionStorage.removeItem('learningResources');
     }
     
-  }, [performance, difficulty, topic, total, score, scorePercentage]);
+  }, [performance, difficulty, topicName, total, score, scorePercentage]);
   
   useEffect(() => {
     // Stop confetti after a few seconds
@@ -183,7 +195,7 @@ function ResultPageContent() {
           </CardHeader>
           <CardContent>
             <div className="my-4">
-              <span className="text-6xl md:text-7xl font-bold text-primary" style={{ textShadow: '0 0 10px hsl(var(--primary))' }}>
+              <span className="text-6xl md:text-7xl font-bold text-primary" style={{ textShadow: '0 0 10px hsl(var(--primary))) }}>
                 {score}
               </span>
               <span className="text-4xl font-bold text-muted-foreground"> / {total}</span>
