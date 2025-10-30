@@ -1,23 +1,42 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BrainCircuit, ChevronRight, Loader2 } from 'lucide-react';
+import { BrainCircuit, ChevronRight, LineChart, Loader2 } from 'lucide-react';
 import { quizHistoryData } from '@/lib/quiz-history-data';
 import { suggestPersonalizedQuizzes, SuggestPersonalizedQuizzesOutput } from '@/ai/flows/suggest-personalized-quizzes';
 import { topics } from '@/lib/quiz-data';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { CartesianGrid, Line, XAxis, YAxis, ResponsiveContainer, LineChart as RechartsLineChart, Tooltip } from 'recharts';
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [suggestions, setSuggestions] = useState<SuggestPersonalizedQuizzesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const chartData = useMemo(() => {
+    return quizHistoryData
+      .slice() // Create a copy to avoid mutating the original array
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map(item => ({
+        date: format(new Date(item.date), 'MMM d'),
+        score: item.score,
+      }));
+  }, []);
+
+  const chartConfig = {
+    score: {
+      label: "Score",
+      color: "hsl(var(--primary))",
+    },
+  };
 
   useEffect(() => {
     if (!user) {
@@ -76,6 +95,62 @@ export default function ProfilePage() {
                 <CardDescription className="text-base">{user.email}</CardDescription>
               </div>
             </CardHeader>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LineChart className="text-primary" />
+                Progress Chart
+              </CardTitle>
+              <CardDescription>Your quiz score performance over time.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <RechartsLineChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(value) => value}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickCount={6}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip
+                    cursor={{
+                      stroke: "hsl(var(--border))",
+                      strokeWidth: 2,
+                      strokeDasharray: "3 3",
+                    }}
+                    content={<ChartTooltipContent 
+                      formatter={(value) => `${value}%`}
+                    />}
+                  />
+                  <Line
+                    dataKey="score"
+                    type="monotone"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={{
+                      fill: "hsl(var(--primary))",
+                      r: 4,
+                    }}
+                    activeDot={{
+                      r: 6,
+                      style: { stroke: "hsl(var(--primary))", opacity: 0.25 },
+                    }}
+                  />
+                </RechartsLineChart>
+              </ChartContainer>
+            </CardContent>
           </Card>
 
           <Card>
