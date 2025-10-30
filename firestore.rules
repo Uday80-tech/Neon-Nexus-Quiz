@@ -1,90 +1,145 @@
-/**
- * @fileOverview Firestore Security Rules for Brain Battle Quiz Game
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for profile data and quiz history,
- * allowing users to only access their own information. Leaderboard data is publicly readable,
- * but write access is restricted to maintain data integrity.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
- * - /users/{userId}/quizHistory/{quizHistoryId}: Stores quiz history, accessible only by the user.
- * - /leaderboard/{leaderboardEntryId}: Stores leaderboard entries, publicly readable but write-protected.
- * - /questions/{questionId}: Stores quiz questions, publicly readable, writes are restricted
- *
- * Key Security Decisions:
- * - User data and quiz history are strictly controlled by user ID in the path.
- * - Leaderboard data is publicly readable for game-wide display.
- * - Leaderboard entries are only created from secure backend environments (e.g. Cloud Functions).
- * - Questions are read publicly but secured against modification.
- *
- * Denormalization for Authorization:
- * - User-specific data is nested under the /users/{userId} path, allowing for simple `isOwner(userId)` checks.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profiles, ensuring only the user can access their own data.
+     * @description Allows users to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (create) - User with ID 'user_abc' can create their profile if request.auth.uid == 'user_abc'.
-     * @allow (get, list, update, delete) - User with ID 'user_abc' can read/write their profile if request.auth.uid == 'user_abc'.
-     * @deny (create, get, list, update, delete) - User with ID 'user_xyz' cannot access 'user_abc' profile.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with ID 'user123' can create their profile.
+     *   request.auth.uid == 'user123'
+     *   request.resource.data.id == 'user123'
+     * @allow (get) User with ID 'user123' can read their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' can update their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     *   request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user123' cannot create profile with ID 'user456'.
+     *   request.auth.uid == 'user123'
+     *   request.resource.data.id == 'user456'
+     * @deny (get) User with ID 'user456' cannot read profile of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' cannot update profile of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (delete) User with ID 'user456' cannot delete profile of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @principle Enforces document ownership based on the path.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
       function isSignedIn() {
         return request.auth != null;
       }
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow get, list, update, delete: if isSignedIn() && isOwner(userId) && request.resource.data.id == resource.data.id;
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages quiz history for each user, ensuring only the user can access their own history.
+     * @description Allows users to read and write their own quiz history.
      * @path /users/{userId}/quizHistory/{quizHistoryId}
-     * @allow (create) - User with ID 'user_abc' can create a quiz history entry under their profile.
-     * @allow (get, list, update, delete) - User with ID 'user_abc' can read/write their quiz history entry under their profile.
-     * @deny (create, get, list, update, delete) - User with ID 'user_xyz' cannot access 'user_abc' quiz history.
-     * @principle Restricts access to a user's own data tree, validating relational integrity.
+     * @allow (create) User with ID 'user123' can create quiz history entry.
+     *   request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' can read their quiz history entry.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' can update their quiz history entry.
+     *   request.auth.uid == 'user123'
+     * @allow (delete) User with ID 'user123' can delete their quiz history entry.
+     *   request.auth.uid == 'user123'
+     * @deny (get) User with ID 'user456' cannot read quiz history entry of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (create) User with ID 'user456' cannot create quiz history entry for user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' cannot update quiz history entry of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (delete) User with ID 'user456' cannot delete quiz history entry of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @principle Enforces document ownership based on the path.
      */
     match /users/{userId}/quizHistory/{quizHistoryId} {
-        function isOwner(userId) {
-          return request.auth.uid == userId;
-        }
-        function isSignedIn() {
-          return request.auth != null;
-        }
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow get, list, update, delete: if isSignedIn() && isOwner(userId) && resource.data.userId == userId;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      allow get: if isOwner(userId);
+      allow list: if false; // Listing quiz histories doesn't make sense and can be a security risk.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages quiz questions. Read access is public, but write access is restricted.
+     * @description Allows anyone to read questions, but only admins can create, update, or delete them. Admin role is not yet implemented.
      * @path /questions/{questionId}
-     * @allow (get, list) - Anyone can read the questions.
-     * @deny (create, update, delete) - No one can create, update, or delete questions directly through the client.
-     * @principle Read access is public, write access is restricted.
+     * @allow (get) Any user can read a question.
+     * @allow (list) Any user can list questions.
+     * @deny (create) Any user (without admin role) cannot create a question.
+     * @deny (update) Any user (without admin role) cannot update a question.
+     * @deny (delete) Any user (without admin role) cannot delete a question.
+     * @principle Public read access, restricted write access.
      */
     match /questions/{questionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only write access (e.g., via a Cloud Function with role-based authorization).
+      allow get: if true;
+      allow list: if true;
+      allow create: if false; // TODO: Add admin role check
+      allow update: if false; // TODO: Add admin role check
+      allow delete: if false; // TODO: Add admin role check
     }
 
     /**
-     * @description Manages leaderboard entries. Read access is public, but write access is restricted.
-     * @path /leaderboard/{leaderboardEntryId}
-     * @allow (get, list) - Anyone can read the leaderboard entries.
-     * @deny (create, update, delete) - No one can create, update, or delete leaderboard entries directly.
-     * @principle Read access is public, write access is restricted.
+     * @description Allows anyone to read leaderboard entries, but only the user can update their own entry.
+     * @path /leaderboard/{userId}
+     * @allow (get) Any user can read a leaderboard entry.
+     * @allow (list) Any user can list leaderboard entries.
+     * @allow (create) User with ID 'user123' can create their leaderboard entry.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' can update their leaderboard entry.
+     *   request.auth.uid == 'user123'
+     * @allow (delete) User with ID 'user123' can delete their leaderboard entry.
+     *   request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' cannot create leaderboard entry for user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' cannot update leaderboard entry of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @deny (delete) User with ID 'user456' cannot delete leaderboard entry of user 'user123'.
+     *   request.auth.uid == 'user456'
+     * @principle Public read access, owner-only write access.
      */
-    match /leaderboard/{leaderboardEntryId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement backend-only write access (e.g., via a Cloud Function triggered by quiz completion).
+    match /leaderboard/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
