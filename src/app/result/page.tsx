@@ -58,7 +58,9 @@ export default function ResultPage() {
         date: new Date().toISOString(),
       });
       const leaderboardColRef = collection(firestore, 'leaderboard');
-      addDocumentNonBlocking(leaderboardColRef, {
+      // Let's create a unique ID for the leaderboard entry to avoid overwriting
+      const leaderboardDocId = `${user.uid}_${Date.now()}`;
+      addDocumentNonBlocking(collection(firestore, 'leaderboard'), {
         userId: user.uid,
         score: Math.round(performance * 100),
         timestamp: serverTimestamp(),
