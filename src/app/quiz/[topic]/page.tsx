@@ -12,14 +12,16 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 
 export default function QuizPage({ params }: { params: { topic: string } }) {
-  const { topic } = params;
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
   const [topicData, setTopicData] = useState<Omit<import('@/lib/types').Topic, 'icon'> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   
   useEffect(() => {
-    if (topic === 'custom' || topic === 'custom-training') {
+    // It's safer to access params.topic inside useEffect
+    const currentTopic = params.topic;
+
+    if (currentTopic === 'custom' || currentTopic === 'custom-training') {
       const storedQuestions = sessionStorage.getItem('quizQuestions');
       const storedTopic = sessionStorage.getItem('quizTopic');
       
@@ -32,15 +34,15 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
         return;
       }
     } else {
-      const staticTopicData = topics.find((t) => t.slug === topic);
+      const staticTopicData = topics.find((t) => t.slug === currentTopic);
       if (staticTopicData) {
         const { icon, ...serializableTopicData } = staticTopicData;
         setTopicData(serializableTopicData);
-        setQuizQuestions(questions[topic] || []);
+        setQuizQuestions(questions[currentTopic] || []);
       }
     }
     setIsLoading(false);
-  }, [topic, router]);
+  }, [params.topic, router]);
 
   if (isLoading) {
     return (
