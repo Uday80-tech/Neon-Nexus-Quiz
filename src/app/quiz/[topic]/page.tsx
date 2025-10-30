@@ -1,27 +1,57 @@
+
+'use client';
+
 import { questions, topics } from '@/lib/quiz-data';
 import QuizClient from '@/components/quiz/QuizClient';
-import { notFound } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import type { Question } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-
-export async function generateStaticParams() {
-  return topics.map((topic) => ({
-    topic: topic.slug,
-  }));
-}
+import { useEffect, useState } from 'react';
 
 export default function QuizPage({ params }: { params: { topic: string } }) {
-  const topicData = topics.find((t) => t.slug === params.topic);
-  const quizQuestions: Question[] | undefined = questions[params.topic];
+  const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
+  const [topicData, setTopicData] = useState<Omit<import('@/lib/types').Topic, 'icon'> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  
+  useEffect(() => {
+    if (params.topic === 'custom') {
+      const storedQuestions = sessionStorage.getItem('quizQuestions');
+      const storedTopic = sessionStorage.getItem('quizTopic');
+      
+      if (storedQuestions && storedTopic) {
+        setQuizQuestions(JSON.parse(storedQuestions));
+        setTopicData(JSON.parse(storedTopic));
+      } else {
+        // If no data, redirect to home to create a new quiz
+        router.push('/');
+        return;
+      }
+    } else {
+      const staticTopicData = topics.find((t) => t.slug === params.topic);
+      if (staticTopicData) {
+        const { icon, ...serializableTopicData } = staticTopicData;
+        setTopicData(serializableTopicData);
+        setQuizQuestions(questions[params.topic] || []);
+      }
+    }
+    setIsLoading(false);
+  }, [params.topic, router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (!quizQuestions || !topicData) {
     notFound();
   }
-  
-  const { icon, ...serializableTopicData } = topicData;
 
   if (quizQuestions.length === 0) {
     return (
@@ -37,8 +67,8 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
             </CardDescription>
           </CardHeader>
           <div className="p-6 pt-0">
-             <Link href="/topics">
-              <Button>Choose Another Topic</Button>
+             <Link href="/">
+              <Button>Create a new Quiz</Button>
             </Link>
           </div>
         </Card>
@@ -46,5 +76,5 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
     )
   }
 
-  return <QuizClient questions={quizQuestions} topic={serializableTopicData} />;
+  return <QuizClient questions={quizQuestions} topic={topicData} />;
 }
