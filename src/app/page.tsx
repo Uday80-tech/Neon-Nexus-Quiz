@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import ThreeScene from '@/components/ThreeScene';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, BrainCircuit, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateQuiz } from '@/ai/flows/generate-quiz';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 
 const formSchema = z.object({
   topic: z.string().min(2, { message: 'Topic must be at least 2 characters.' }),
@@ -23,6 +24,7 @@ export default function Home() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -44,15 +46,15 @@ export default function Home() {
         throw new Error(quizResult.error);
       }
       
-      if (!quizResult.questions) {
+      if (!quizResult.questions || quizResult.questions.length === 0) {
         throw new Error('The AI failed to generate questions for this topic.');
       }
 
-      // Store questions and topic in session storage to pass to the quiz page
       sessionStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
       const topicData = { name: values.topic, slug: 'custom', difficulty: 'custom' };
       sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
       
+      setIsDialogOpen(false);
       router.push('/quiz/custom');
 
     } catch (error: any) {
@@ -62,6 +64,7 @@ export default function Home() {
         title: 'Error Generating Quiz',
         description: error.message || 'There was an issue creating your quiz. Please try again.',
       });
+    } finally {
       setIsLoading(false);
     }
   }
@@ -77,66 +80,85 @@ export default function Home() {
           Neon Nexus Quiz
         </h1>
         <p className="mt-4 max-w-2xl text-lg md:text-xl text-foreground/80">
-          Challenge your knowledge in a futuristic AI-powered quiz arena. Enter any topic and let our AI create a custom quiz for you!
+          Challenge your knowledge in a futuristic AI-powered quiz arena. Choose a topic or let our AI create a custom quiz for you!
         </p>
-        <Form {...form}>
-          <form 
-            onSubmit={form.handleSubmit(onSubmit)} 
-            className="mt-8 w-full max-w-lg grid grid-cols-1 md:grid-cols-2 gap-4 items-start bg-card/50 backdrop-blur-sm p-6 rounded-lg border"
-          >
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <FormField
-                  control={form.control}
-                  name="topic"
-                  render={({ field }) => (
-                    <FormItem className="text-left">
-                      <FormLabel>Quiz Topic</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Ancient Rome, Web Development" {...field} className="text-base"/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div>
-                <FormField
-                  control={form.control}
-                  name="numQuestions"
-                  render={({ field }) => (
-                    <FormItem className="text-left">
-                      <FormLabel># of Questions</FormLabel>
-                      <FormControl>
-                        <Input type="number" min="1" max="10" {...field} className="text-base"/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <Button 
-                type="submit"
-                size="lg" 
-                className="w-full font-bold text-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 shadow-[0_0_15px_rgba(52,209,191,0.6)] hover:shadow-[0_0_25px_rgba(52,209,191,0.9)]"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 animate-spin" />
-                    Generating Quiz...
-                  </>
-                ) : (
-                  <>
-                    Start Quiz <ArrowRight className="ml-2" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </Form>
+        <div className="mt-8 w-full max-w-md flex flex-col sm:flex-row gap-4">
+           <Button
+              size="lg"
+              className="w-full font-bold text-lg"
+              onClick={() => router.push('/topics')}
+            >
+              Start Quiz
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
+                >
+                   <BrainCircuit className="mr-2"/> Train Your Mind
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card/90 backdrop-blur-lg">
+                <DialogHeader>
+                  <DialogTitle>Train Your Mind with AI</DialogTitle>
+                  <DialogDescription>
+                    Enter any topic and the number of questions. Our AI will generate a unique quiz just for you.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form 
+                    onSubmit={form.handleSubmit(onSubmit)} 
+                    className="grid gap-4 py-4"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="topic"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Quiz Topic</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Ancient Rome, Web Development" {...field} className="text-base"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="numQuestions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel># of Questions</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="1" max="10" {...field} className="text-base"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button 
+                      type="submit"
+                      className="w-full font-bold text-lg mt-4 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 shadow-[0_0_15px_rgba(52,209,191,0.6)] hover:shadow-[0_0_25px_rgba(52,209,191,0.9)]"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          Create Quiz <ArrowRight className="ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+        </div>
       </div>
     </div>
   );
