@@ -1,0 +1,225 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Brain Battle quiz game.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's chosen username."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "createdAt"
+      ]
+    },
+    "QuizHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "QuizHistory",
+      "type": "object",
+      "description": "Stores the history of quizzes taken by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the quiz history entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N QuizHistory)"
+        },
+        "topic": {
+          "type": "string",
+          "description": "The topic of the quiz (e.g., Science, Tech)."
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's score on the quiz."
+        },
+        "completionTime": {
+          "type": "number",
+          "description": "The quiz completion time in seconds"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the quiz was completed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "topic",
+        "score",
+        "completionTime",
+        "completedAt"
+      ]
+    },
+    "Question": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Question",
+      "type": "object",
+      "description": "Represents a single quiz question.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the question."
+        },
+        "topic": {
+          "type": "string",
+          "description": "The topic the question belongs to (e.g., Science, Tech)."
+        },
+        "questionText": {
+          "type": "string",
+          "description": "The actual text of the question."
+        },
+        "options": {
+          "type": "array",
+          "description": "An array of possible answer options for the question.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "correctAnswer": {
+          "type": "string",
+          "description": "The correct answer to the question."
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "questionText",
+        "options",
+        "correctAnswer"
+      ]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents a single entry on the leaderboard.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the leaderboard entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N LeaderboardEntry)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The user's score for this leaderboard entry."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp indicating when the score was achieved.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "score",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Path-based ownership ensures only the user can access their data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/quizHistory/{quizHistoryId}",
+        "definition": {
+          "entityName": "QuizHistory",
+          "schema": {
+            "$ref": "#/backend/entities/QuizHistory"
+          },
+          "description": "Stores quiz history for each user. Path-based ownership enforces that only the user can access their own quiz history.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            },
+            {
+              "name": "quizHistoryId",
+              "description": "The unique ID of the quiz history entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/questions/{questionId}",
+        "definition": {
+          "entityName": "Question",
+          "schema": {
+            "$ref": "#/backend/entities/Question"
+          },
+          "description": "Stores quiz questions. Read access is public, but write access is restricted to admins.",
+          "params": [
+            {
+              "name": "questionId",
+              "description": "The unique ID of the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboard/{leaderboardEntryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores leaderboard entries. Read access is public, but write access is restricted.",
+          "params": [
+            {
+              "name": "leaderboardEntryId",
+              "description": "The unique ID of the leaderboard entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to prioritize authorization independence, clarity, and scalability for the Brain Battle quiz game. We leverage path-based ownership for user-specific data and avoid `get()` calls in security rules by denormalizing authorization data where necessary. \n\n*   **/users/{userId}:** Stores user profiles.  This collection utilizes path-based ownership, which means that only the authenticated user with the matching `userId` can access their own document. This structure is secure and efficient.\n*   **/users/{userId}/quizHistory/{quizHistoryId}:** Stores the quiz history for each user. This follows path-based ownership, providing straightforward security rules. The `quizHistory` subcollection is nested under the `users` collection, thus creating a hierarchy and enabling the app to efficiently query a user's quiz history based on the user's ID.\n*   **/leaderboard/{leaderboardEntryId}:** Stores leaderboard entries. This collection is globally accessible for reading to display the leaderboard, but write access is restricted to authorized users (e.g., via a Cloud Function after a game completion) to prevent tampering.  Authorization Independence: There's no reliance on parent document data to authorize access to the leaderboard entries themselves. This simplifies security rules and maintains atomicity.\n*   **/questions/{questionId}:** Stores quiz questions. This collection is globally readable, but write access is restricted to authorized admin users. This segregation ensures that only authorized individuals can modify the question data.  Authorization Independence:  Since questions are globally readable, there's no dependency on parent documents for access control.  This is crucial for efficient querying and reduces the complexity of security rules.\n\nThis structure allows for efficient querying of user data, quiz history, and leaderboard information, while ensuring data integrity and security."
+  }
+}
