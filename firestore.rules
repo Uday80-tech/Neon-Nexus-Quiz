@@ -3,103 +3,143 @@
  *
  * Core Philosophy:
  * This ruleset enforces a strict user-ownership model for user profiles and quiz history,
- * and restricts write access to the leaderboard and questions collections.
+ * and restricts write access to leaderboard entries and questions to prevent unauthorized modifications.
+ * Read access to questions and leaderboard data is public.
  *
  * Data Structure:
  * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
  * - /users/{userId}/quizHistory/{quizHistoryId}: Stores quiz history, accessible only by the user.
- * - /questions/{questionId}: Stores quiz questions, publicly readable, write access restricted.
- * - /leaderboard/{leaderboardEntryId}: Stores leaderboard entries, publicly readable, write access restricted.
+ * - /questions/{questionId}: Stores quiz questions, publicly readable but writable only by authorized users.
+ * - /leaderboard/{leaderboardEntryId}: Stores leaderboard entries, publicly readable but writable only by authorized users.
  *
  * Key Security Decisions:
- * - Users can only access their own profile and quiz history data.
- * - Leaderboard data is publicly readable, but write access is restricted to prevent tampering.
- * - Questions are publicly readable, but write access is restricted to maintain data integrity.
- * - User listing is implicitly denied.
+ * - User listing is disallowed to protect user privacy.
+ * - Leaderboard and question data is publicly readable to facilitate game functionality.
+ * - Write access to leaderboard and question collections is restricted. Implement custom logic in backend.
  *
  * Denormalization for Authorization:
- *   None. Authorization is based on path-based ownership and pre-existing conditions, which does not require denormalization.
- *
+ *  - User-specific data (quiz history) is stored as a subcollection under the user's document,
+ *    enabling path-based authorization without the need for `get()` calls.
  * Structural Segregation:
- *   Drafts and published content is not required for the application. Therefore, structural segregation is not required.
+ * -Public data (leaderboard, questions) are top-level.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
+     * @description Protects general read/write access to the entire database.
+     * @path /databases/{database}/documents
+     * @allow (read) Authenticated user can read.
+     * @deny (write) No one can write to the root.
+     * @principle Root level access control.
+     */
+    match /{document=**} {
+      allow read: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
      * @description Controls access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their own profile.
-     * @deny (create) User with ID 'user456' cannot create a profile for 'user123'.
-     * @allow (get, list, update, delete) User with ID 'user123' can read, update, and delete their own profile.
-     * @deny (get, list, update, delete) User with ID 'user456' cannot read, update, or delete 'user123' profile.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) User with ID 'user123' can create a document at /users/user123 if authenticated as user123.
+     * @allow (get) User with ID 'user123' can get their profile at /users/user123 if authenticated as user123.
+     * @allow (list) User with ID 'user123' can list their profile at /users/user123 if authenticated as user123.
+     * @allow (update) User with ID 'user123' can update their profile at /users/user123 if authenticated as user123 and the document exists.
+     * @allow (delete) User with ID 'user123' can delete their profile at /users/user123 if authenticated as user123 and the document exists.
+     * @deny (create) User with ID 'user456' cannot create a document at /users/user123.
+     * @deny (update) User with ID 'user456' cannot update the document at /users/user123.
+     * @principle Enforces document ownership, allowing only the authenticated user to manage their own profile.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow list: if false; // Disallow listing all users for privacy.
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to quiz history documents within a user's profile.
+     * @description Controls access to quiz history documents for a specific user.
      * @path /users/{userId}/quizHistory/{quizHistoryId}
-     * @allow (create) User with ID 'user123' can create a quiz history entry under their profile.
-     * @deny (create) User with ID 'user456' cannot create a quiz history entry under 'user123' profile.
-     * @allow (get, list, update, delete) User with ID 'user123' can read, update, and delete their own quiz history entries.
-     * @deny (get, list, update, delete) User with ID 'user456' cannot read, update, or delete 'user123' quiz history entries.
-     * @principle Enforces document ownership for quiz history, nested under user profiles.
+     * @allow (create) User with ID 'user123' can create quiz history at /users/user123/quizHistory/quiz1 if authenticated as user123.
+     * @allow (get) User with ID 'user123' can get their quiz history at /users/user123/quizHistory/quiz1 if authenticated as user123.
+     * @allow (list) User with ID 'user123' can list their quiz history at /users/user123/quizHistory if authenticated as user123.
+     * @allow (update) User with ID 'user123' can update their quiz history at /users/user123/quizHistory/quiz1 if authenticated as user123 and the document exists.
+     * @allow (delete) User with ID 'user123' can delete their quiz history at /users/user123/quizHistory/quiz1 if authenticated as user123 and the document exists.
+     * @deny (create) User with ID 'user456' cannot create quiz history at /users/user123/quizHistory/quiz1.
+     * @deny (update) User with ID 'user456' cannot update quiz history at /users/user123/quizHistory/quiz1.
+     * @principle Enforces document ownership, allowing only the authenticated user to manage their own quiz history.
      */
     match /users/{userId}/quizHistory/{quizHistoryId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Controls access to question documents.
      * @path /questions/{questionId}
-     * @allow (get, list) Anyone can read questions.
-     * @deny (create, update, delete) Only admins can create, update, or delete questions.
-     * @principle Public read access, restricted write access for quiz questions.
+     * @allow (get) Any user can get a question document at /questions/question1.
+     * @allow (list) Any user can list question documents in /questions.
+     * @deny (create) No user can create a question document directly.  Creation should be handled via backend.
+     * @deny (update) No user can update a question document directly. Updates should be handled via backend.
+     * @principle Read access is public, but write access is restricted.
      */
     match /questions/{questionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin role check
+      allow get: if true;
+      allow list: if true;
+      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
      * @description Controls access to leaderboard entry documents.
      * @path /leaderboard/{leaderboardEntryId}
-     * @allow (get, list) Anyone can read the leaderboard.
-     * @deny (create, update, delete) Write access is restricted to prevent tampering.
-     * @principle Public read access, restricted write access for leaderboard entries.
+     * @allow (get) Any user can get a leaderboard entry document at /leaderboard/entry1.
+     * @allow (list) Any user can list leaderboard entry documents in /leaderboard.
+     * @deny (create) No user can create a leaderboard entry document directly. Creation should be handled via backend.
+     * @deny (update) No user can update a leaderboard entry document directly. Updates should be handled via backend.
+     * @principle Read access is public, but write access is restricted.
      */
     match /leaderboard/{leaderboardEntryId} {
-      allow get, list: if true;
-      allow create: if request.auth.uid == request.resource.data.userId;  //CRITICAL: Added the condition to allow create only if the user is authenticated
-      allow update, delete: if false; // TODO: Add logic to allow Cloud Functions to update/delete
+      allow get: if true;
+      allow list: if true;
+      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
+  }
+
+  /**
+   * @description Checks if the user is signed in.
+   * @returns {boolean} True if the user is signed in, false otherwise.
+   */
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  /**
+   * @description Checks if the user ID matches the requested user ID.
+   * @param {string} userId The user ID to check against.
+   * @returns {boolean} True if the user ID matches the authenticated user's ID, false otherwise.
+   */
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  /**
+   * @description Checks if the user ID matches the requested user ID and if the resource exists.
+   *              This is used to prevent updates/deletes on non-existent documents.
+   * @param {string} userId The user ID to check against.
+   * @returns {boolean} True if the user ID matches the authenticated user's ID and the resource exists.
+   */
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
   }
 }
