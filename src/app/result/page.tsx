@@ -69,8 +69,9 @@ function ResultPageContent() {
         completedAt: serverTimestamp(),
         date: new Date().toISOString(),
       };
+      
       const leaderboardData = {
-        userId: user.displayName || user.email,
+        userId: user.displayName || user.email || 'Anonymous',
         score: scorePercentage,
         timestamp: serverTimestamp(),
       };
@@ -80,7 +81,7 @@ function ResultPageContent() {
       
       setIsDataSaved(true);
     }
-  }, [user, firestore, topic, performance, total, isDataSaved, scorePercentage, score]);
+  }, [user, firestore, topic, total, isDataSaved, scorePercentage]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -108,12 +109,12 @@ function ResultPageContent() {
     }
 
     // Check for session-based learning resources (from training plans)
-    if (topic === 'custom-training') {
-      const resources = sessionStorage.getItem('learningResources');
-      if (resources) setSessionLearningResources(JSON.parse(resources));
-    } else {
+    const storedResources = sessionStorage.getItem('learningResources');
+    if (storedResources) {
+      setSessionLearningResources(JSON.parse(storedResources));
       sessionStorage.removeItem('learningResources');
     }
+    
   }, [performance, difficulty, topic, total, score, scorePercentage]);
   
   useEffect(() => {
@@ -133,10 +134,6 @@ function ResultPageContent() {
 
   const learningResources = sessionLearningResources || aiLearningPath?.suggestedResources;
 
-  // --- Render logic ---
-
-  // THIS IS THE FIX: Handle loading state with a dedicated return.
-  // This prevents the main JSX from being in an invalid state.
   if (isUserLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
