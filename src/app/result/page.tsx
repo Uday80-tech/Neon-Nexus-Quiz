@@ -2,7 +2,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import useWindowSize from 'react-use/lib/useWindowSize';
 import Confetti from 'react-confetti';
 import Link from 'next/link';
@@ -19,7 +19,7 @@ import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 
-export default function ResultPage() {
+function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { width, height } = useWindowSize();
@@ -37,6 +37,7 @@ export default function ResultPage() {
   const [aiLearningPath, setAiLearningPath] = useState<SuggestPersonalizedLearningPathsOutput | null>(null);
   const [sessionLearningResources, setSessionLearningResources] = useState<LearningResources['suggestedResources'] | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(true);
+  const [isDataSaved, setIsDataSaved] = useState(false);
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
   
@@ -47,26 +48,27 @@ export default function ResultPage() {
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (user && firestore && total > 0) {
+    if (user && firestore && total > 0 && !isDataSaved) {
       const historyColRef = collection(firestore, `users/${user.uid}/quizHistory`);
       addDocumentNonBlocking(historyColRef, {
         topic: topic,
         score: Math.round(performance * 100),
         totalQuestions: total,
-        completionTime: 0,
+        completionTime: 0, 
         completedAt: serverTimestamp(),
         date: new Date().toISOString(),
       });
+      
       const leaderboardColRef = collection(firestore, 'leaderboard');
-      // Let's create a unique ID for the leaderboard entry to avoid overwriting
-      const leaderboardDocId = `${user.uid}_${Date.now()}`;
-      addDocumentNonBlocking(collection(firestore, 'leaderboard'), {
-        userId: user.uid,
+      addDocumentNonBlocking(leaderboardColRef, {
+        userId: user.displayName || user.email,
         score: Math.round(performance * 100),
         timestamp: serverTimestamp(),
       });
+
+      setIsDataSaved(true);
     }
-  }, [user, firestore, topic, performance, total]);
+  }, [user, firestore, topic, performance, total, isDataSaved, score]);
   
   useEffect(() => {
     if (topic !== 'custom-training') {
@@ -206,4 +208,17 @@ export default function ResultPage() {
       </div>
     </div>
   );
+}
+
+// Next.js's useSearchParams hook requires a Suspense boundary.
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <ResultPageContent />
+    </Suspense>
+  )
 }
