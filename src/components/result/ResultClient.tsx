@@ -11,7 +11,9 @@ import { suggestPersonalizedLearningPaths, SuggestPersonalizedLearningPathsOutpu
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BrainCircuit, Home, Loader2, RefreshCw, Sparkles, Target } from 'lucide-react';
+import { BrainCircuit, Home, Link as LinkIcon, Loader2, RefreshCw, Sparkles, Target } from 'lucide-react';
+import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from '@/ai/flows/suggest-personalized-learning-paths';
+
 
 export default function ResultClient() {
   const searchParams = useSearchParams();
@@ -25,11 +27,22 @@ export default function ResultClient() {
   const [showConfetti, setShowConfetti] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AdjustQuizDifficultyOutput | null>(null);
   const [aiLearningPath, setAiLearningPath] = useState<SuggestPersonalizedLearningPathsOutput | null>(null);
+  const [sessionLearningResources, setSessionLearningResources] = useState<LearningResources['suggestedResources'] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const performance = useMemo(() => (total > 0 ? score / total : 0), [score, total]);
   
   useEffect(() => {
+    // Clear learning resources from previous sessions
+    if (topic !== 'custom-training') {
+      sessionStorage.removeItem('learningResources');
+    } else {
+      const resources = sessionStorage.getItem('learningResources');
+      if (resources) {
+        setSessionLearningResources(JSON.parse(resources));
+      }
+    }
+  
     if (total > 0) {
       const getAiFeedback = async () => {
         setIsLoading(true);
@@ -71,6 +84,8 @@ export default function ResultClient() {
     if (performance >= 0.5) return "Good job! A solid performance.";
     return "Nice try! Keep practicing to improve.";
   }, [performance]);
+  
+  const learningResources = sessionLearningResources || aiLearningPath?.suggestedResources;
 
   return (
     <div className="container mx-auto max-w-4xl py-8 md:py-12 text-center">
@@ -130,11 +145,13 @@ export default function ResultClient() {
           <CardContent>
             {isLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" />Generating recommendations...</div>
-            ) : aiLearningPath && aiLearningPath.suggestedResources.length > 0 ? (
+            ) : learningResources && learningResources.length > 0 ? (
               <ul className="space-y-3">
-                {aiLearningPath.suggestedResources.map((res, index) => (
+                {learningResources.map((res, index) => (
                   <li key={index}>
-                    <a href={res.resourceLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">{res.resourceName}</a>
+                    <a href={res.resourceLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline flex items-center gap-1">
+                      {res.resourceName} <LinkIcon className='w-3 h-3' />
+                    </a>
                     <p className="text-sm text-muted-foreground">{res.reason}</p>
                   </li>
                 ))}

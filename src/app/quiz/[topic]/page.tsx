@@ -19,7 +19,7 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (topic === 'custom') {
+    if (topic === 'custom' || topic === 'custom-training') {
       const storedQuestions = sessionStorage.getItem('quizQuestions');
       const storedTopic = sessionStorage.getItem('quizTopic');
       

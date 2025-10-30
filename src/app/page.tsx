@@ -14,6 +14,7 @@ import ThreeScene from '@/components/ThreeScene';
 import { ArrowRight, BrainCircuit, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateQuiz } from '@/ai/flows/generate-quiz';
+import { suggestPersonalizedTrainingPlan } from '@/ai/flows/suggest-personalized-training-plan';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 
 const formSchema = z.object({
@@ -26,7 +27,8 @@ export default function Home() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isQuizDialogOpen, setIsQuizDialogOpen] = useState(false);
+  const [isTrainingDialogOpen, setIsTrainingDialogOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -37,7 +39,16 @@ export default function Home() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const trainingForm = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      topic: 'Machine Learning',
+      numQuestions: 3,
+      difficulty: 'easy',
+    },
+  });
+
+  async function onQuizSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
       const quizResult = await generateQuiz({
@@ -58,7 +69,7 @@ export default function Home() {
       const topicData = { name: values.topic, slug: 'custom', difficulty: values.difficulty };
       sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
       
-      setIsDialogOpen(false);
+      setIsQuizDialogOpen(false);
       router.push('/quiz/custom');
 
     } catch (error: any) {
@@ -67,6 +78,46 @@ export default function Home() {
         variant: 'destructive',
         title: 'Error Generating Quiz',
         description: error.message || 'There was an issue creating your quiz. Please try again.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+  
+  async function onTrainingSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    try {
+      const trainingResult = await suggestPersonalizedTrainingPlan({
+        topic: values.topic,
+        numberOfQuestions: values.numQuestions,
+        difficulty: values.difficulty,
+      });
+
+      if (trainingResult.error) {
+        throw new Error(trainingResult.error);
+      }
+      
+      if (!trainingResult.questions || trainingResult.questions.length === 0) {
+        throw new Error('The AI failed to generate a training plan for this topic.');
+      }
+
+      sessionStorage.setItem('quizQuestions', JSON.stringify(trainingResult.questions));
+      const topicData = { name: `Training: ${values.topic}`, slug: 'custom-training', difficulty: values.difficulty };
+      sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
+      
+      if(trainingResult.suggestedResources && trainingResult.suggestedResources.length > 0) {
+        sessionStorage.setItem('learningResources', JSON.stringify(trainingResult.suggestedResources));
+      }
+      
+      setIsTrainingDialogOpen(false);
+      router.push('/quiz/custom-training');
+
+    } catch (error: any) {
+      console.error('Failed to generate training plan:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error Generating Training Plan',
+        description: error.message || 'There was an issue creating your training plan. Please try again.',
       });
     } finally {
       setIsLoading(false);
@@ -87,11 +138,12 @@ export default function Home() {
           Challenge your knowledge in a futuristic AI-powered quiz arena. Choose a topic or let our AI create a custom quiz for you!
         </p>
         <div className="mt-8 w-full max-w-md flex flex-col sm:flex-row gap-4">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isQuizDialogOpen} onOpenChange={setIsQuizDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="lg"
                   className="w-full font-bold text-lg"
+                  onClick={() => router.push('/topics')}
                 >
                    Start Quiz
                 </Button>
@@ -105,7 +157,7 @@ export default function Home() {
                 </DialogHeader>
                 <Form {...form}>
                   <form 
-                    onSubmit={form.handleSubmit(onSubmit)} 
+                    onSubmit={form.handleSubmit(onQuizSubmit)} 
                     className="grid gap-4 py-4"
                   >
                     <FormField
@@ -178,14 +230,98 @@ export default function Home() {
                 </Form>
               </DialogContent>
             </Dialog>
-           <Button
-              size="lg"
-              variant="outline"
-              className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
-              onClick={() => router.push('/topics')}
-            >
-              <BrainCircuit className="mr-2"/> Train Your Mind
-            </Button>
+            <Dialog open={isTrainingDialogOpen} onOpenChange={setIsTrainingDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
+                >
+                  <BrainCircuit className="mr-2"/> Train Your Mind
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card/90 backdrop-blur-lg">
+                <DialogHeader>
+                  <DialogTitle>Personalized Training</DialogTitle>
+                  <DialogDescription>
+                    Our AI will generate a small quiz and learning resources to help you master a new topic.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...trainingForm}>
+                  <form 
+                    onSubmit={trainingForm.handleSubmit(onTrainingSubmit)} 
+                    className="grid gap-4 py-4"
+                  >
+                    <FormField
+                      control={trainingForm.control}
+                      name="topic"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Training Topic</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Quantum Physics" {...field} className="text-base"/>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={trainingForm.control}
+                        name="numQuestions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel># of Questions</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" max="5" {...field} className="text-base"/>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={trainingForm.control}
+                        name="difficulty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Your Level</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="text-base">
+                                  <SelectValue placeholder="Select level" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="easy">Beginner</SelectItem>
+                                <SelectItem value="medium">Intermediate</SelectItem>
+                                <SelectItem value="hard">Expert</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <Button 
+                      type="submit"
+                      className="w-full font-bold text-lg mt-4 bg-accent text-accent-foreground hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-[0_0_15px_rgba(139,92,246,0.6)] hover:shadow-[0_0_25px_rgba(139,92,246,0.9)]"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          Start Training <ArrowRight className="ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
         </div>
       </div>
     </div>
