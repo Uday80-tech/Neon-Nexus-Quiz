@@ -11,7 +11,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 
-export default function QuizPage({ params: { topic } }: { params: { topic: string } }) {
+export default function QuizPage({ params }: { params: { topic: string } }) {
+  const { topic } = params;
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
   const [topicData, setTopicData] = useState<Omit<import('@/lib/types').Topic, 'icon'> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
