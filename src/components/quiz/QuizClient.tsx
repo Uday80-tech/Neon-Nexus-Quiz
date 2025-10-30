@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
 
-const QUESTION_TIME_LIMIT = 15; // seconds
+const QUESTION_TIME_LIMIT = 30; // seconds
 
 export default function QuizClient({ questions, topic }: { questions: Question[], topic: Omit<Topic, 'icon'> }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
