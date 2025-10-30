@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import ThreeScene from "@/components/ThreeScene";
-import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase";
+import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from 'firebase/app';
 import { Separator } from "@/components/ui/separator";
@@ -76,6 +76,7 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!auth) return;
     try {
       await initiateEmailSignIn(auth, values.email, values.password);
       router.push("/");
@@ -101,6 +102,7 @@ export default function LoginPage() {
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
+        case 'auth/invalid-credential':
           description = 'Invalid email or password.';
           break;
         case 'auth/invalid-email':
@@ -167,7 +169,6 @@ export default function LoginPage() {
           </Form>
 
           <div className="relative my-4">
-            <Separator />
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
