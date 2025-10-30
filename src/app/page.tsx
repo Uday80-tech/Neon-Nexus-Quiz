@@ -87,26 +87,18 @@ export default function Home() {
           Challenge your knowledge in a futuristic AI-powered quiz arena. Choose a topic or let our AI create a custom quiz for you!
         </p>
         <div className="mt-8 w-full max-w-md flex flex-col sm:flex-row gap-4">
-           <Button
-              size="lg"
-              className="w-full font-bold text-lg"
-              onClick={() => router.push('/topics')}
-            >
-              Start Quiz
-            </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="lg"
-                  variant="outline"
-                  className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
+                  className="w-full font-bold text-lg"
                 >
-                   <BrainCircuit className="mr-2"/> Train Your Mind
+                   Start Quiz
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card/90 backdrop-blur-lg">
                 <DialogHeader>
-                  <DialogTitle>Train Your Mind with AI</DialogTitle>
+                  <DialogTitle>Create Your Own Quiz</DialogTitle>
                   <DialogDescription>
                     Enter any topic and the number of questions. Our AI will generate a unique quiz just for you.
                   </DialogDescription>
@@ -186,6 +178,14 @@ export default function Home() {
                 </Form>
               </DialogContent>
             </Dialog>
+           <Button
+              size="lg"
+              variant="outline"
+              className="w-full font-bold text-lg border-2 border-accent text-accent hover:bg-accent/10 hover:text-accent"
+              onClick={() => router.push('/topics')}
+            >
+              <BrainCircuit className="mr-2"/> Train Your Mind
+            </Button>
         </div>
       </div>
     </div>
