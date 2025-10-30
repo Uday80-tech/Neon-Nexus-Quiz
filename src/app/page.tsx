@@ -40,18 +40,27 @@ export default function Home() {
         numberOfQuestions: values.numQuestions,
       });
 
+      if (quizResult.error) {
+        throw new Error(quizResult.error);
+      }
+      
+      if (!quizResult.questions) {
+        throw new Error('The AI failed to generate questions for this topic.');
+      }
+
       // Store questions and topic in session storage to pass to the quiz page
       sessionStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
-      sessionStorage.setItem('quizTopic', JSON.stringify({ name: values.topic, slug: 'custom', difficulty: 'custom' }));
+      const topicData = { name: values.topic, slug: 'custom', difficulty: 'custom' };
+      sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
       
       router.push('/quiz/custom');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate quiz:', error);
       toast({
         variant: 'destructive',
         title: 'Error Generating Quiz',
-        description: 'There was an issue creating your quiz. Please try again.',
+        description: error.message || 'There was an issue creating your quiz. Please try again.',
       });
       setIsLoading(false);
     }

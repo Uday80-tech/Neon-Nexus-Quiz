@@ -26,7 +26,8 @@ const GenerateQuizOutputSchema = z.object({
       correctAnswer: z.number().int().min(0).max(3),
       difficulty: z.enum(['easy', 'medium', 'hard']),
     })
-  ),
+  ).optional(),
+  error: z.string().optional(),
 });
 export type GenerateQuizOutput = z.infer<typeof GenerateQuizOutputSchema>;
 
@@ -52,7 +53,15 @@ const generateQuizFlow = ai.defineFlow(
     outputSchema: GenerateQuizOutputSchema,
   },
   async input => {
-    const { output } = await prompt(input);
-    return output!;
+    try {
+      const { output } = await prompt(input);
+      return output!;
+    } catch (e: any) {
+      if (e.message.includes('503')) {
+        return { error: 'The AI model is currently overloaded. Please try again in a few moments.' };
+      }
+      console.error(e);
+      return { error: 'An unexpected error occurred while generating the quiz.' };
+    }
   }
 );
