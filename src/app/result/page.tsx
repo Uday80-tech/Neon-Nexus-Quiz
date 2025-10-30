@@ -66,7 +66,7 @@ export default function ResultPage() {
          timestamp: serverTimestamp(),
        });
     }
-  }, [user, firestore, topic, score, total, performance]);
+  }, [user, firestore, topic, score, total, performance, router]);
   
   useEffect(() => {
     // Clear learning resources from previous sessions
