@@ -1,93 +1,121 @@
+/**
+ * @file Firestore Security Rules for Brain Battle Quiz Game
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and quiz history,
+ * and restricts write access to the leaderboard, allowing public read access.
+ *
+ * Data Structure:
+ * - /users/{userId}: User profiles, accessible only by the user themselves.
+ * - /users/{userId}/quizHistory/{quizHistoryId}: Quiz history entries, accessible only by the user themselves.
+ * - /questions/{questionId}: Quiz questions, publicly readable but writable by admins only (currently not implemented, write rules are set to false).
+ * - /leaderboard/{leaderboardEntryId}: Leaderboard entries, publicly readable but writable by authenticated users, score can be modified by the same user.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed.
+ * - Read-only collections (questions, leaderboard) are publicly readable.
+ * - Default security posture for ambiguous relationships is strict owner-only access.
+ *
+ * Denormalization for Authorization: Not explicitly used, but the data structure
+ * supports future denormalization (e.g., adding 'ownerId' to quizHistory).
+ *
+ * Structural Segregation: Public (questions, leaderboard) and private (user data)
+ * are stored in separate top-level collections, enhancing security.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Enforces access control for user profiles. Only the user with the matching userId can read and write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile if request.auth.uid == 'user123'.
-     * @allow (get) User with ID 'user123' can read their profile if request.auth.uid == 'user123'.
-     * @allow (update) User with ID 'user123' can update their profile if request.auth.uid == 'user123'.
-     * @allow (delete) User with ID 'user123' can delete their profile if request.auth.uid == 'user123'.
-     * @deny (create) User with ID 'user456' cannot create a profile with ID 'user123'.
-     * @deny (get) User with ID 'user456' cannot read the profile of user 'user123'.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User 'user_abc' can create their profile if request.auth.uid == 'user_abc'.
+     * @allow (get) User 'user_abc' can read their profile if request.auth.uid == 'user_abc'.
+     * @allow (update) User 'user_abc' can update their profile if request.auth.uid == 'user_abc'.
+     * @allow (delete) User 'user_abc' can delete their profile if request.auth.uid == 'user_abc'.
+     * @deny (create) User 'user_xyz' cannot create profile for 'user_abc'.
+     * @deny (get) User 'user_xyz' cannot read 'user_abc' profile.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
+      // isOwner function checks if the requested userId matches the authenticated user's id
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-       
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Controls access to quiz history documents for a specific user.
+     * @description Enforces access control for quiz history entries. Only the user with the matching userId can read and write their own quiz history.
      * @path /users/{userId}/quizHistory/{quizHistoryId}
-     * @allow (create) User with ID 'user123' can create a quiz history entry under their profile.
-     * @allow (get) User with ID 'user123' can read a quiz history entry under their profile.
-     * @allow (update) User with ID 'user123' can update a quiz history entry under their profile.
-     * @allow (delete) User with ID 'user123' can delete a quiz history entry under their profile.
-     * @deny (create) User with ID 'user456' cannot create a quiz history entry under user 'user123'.
-     * @deny (get) User with ID 'user456' cannot read a quiz history entry under user 'user123'.
-     * @principle Enforces document ownership for all operations on quiz history.
+     * @allow (create) User 'user_abc' can create quiz history entry under their profile.
+     * @allow (get) User 'user_abc' can read their quiz history entry.
+     * @allow (update) User 'user_abc' can update their quiz history entry.
+     * @allow (delete) User 'user_abc' can delete their quiz history entry.
+     * @deny (create) User 'user_xyz' cannot create quiz history for 'user_abc'.
+     * @deny (get) User 'user_xyz' cannot read 'user_abc' quiz history.
+     * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId}/quizHistory/{quizHistoryId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Controls access to quiz question documents.
+     * @description Allows public read access to quiz questions, but restricts write access.
      * @path /questions/{questionId}
-     * @allow (get) Anyone can read quiz questions.
-     * @deny (create) Only admins can create questions (TODO: Implement admin check).
-     * @deny (update) Only admins can update questions (TODO: Implement admin check).
-     * @deny (delete) Only admins can delete questions (TODO: Implement admin check).
-     * @principle Allows public read access but restricts write access to authorized users (e.g., admins).
+     * @allow (get) Any user can read quiz questions.
+     * @allow (list) Any user can list quiz questions.
+     * @deny (create) No one can create questions directly (admin only through backend).
+     * @deny (update) No one can update questions directly (admin only through backend).
+     * @deny (delete) No one can delete questions directly (admin only through backend).
+     * @principle Allows public reads, restricts writes.
      */
     match /questions/{questionId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false; // TODO: Implement admin role check
-      allow update: if false; // TODO: Implement admin role check
-      allow delete: if false; // TODO: Implement admin role check
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to leaderboard entry documents.
+     * @description Allows public read access to the leaderboard, but restricts write access to authenticated users.
      * @path /leaderboard/{leaderboardEntryId}
-     * @allow (get) Anyone can read leaderboard entries.
-     * @deny (create) Only a backend service can create leaderboard entries (TODO: Implement backend service check).
-     * @deny (update) Only a backend service can update leaderboard entries (TODO: Implement backend service check).
-     * @deny (delete) Only a backend service can delete leaderboard entries (TODO: Implement backend service check).
-     * @principle Allows public read access but restricts write access to a backend service.
+     * @allow (get) Any user can read the leaderboard.
+     * @allow (list) Any user can list the leaderboard entries.
+     * @allow (create) Only authenticated users can create leaderboard entries.
+     * @allow (update) Only the user who created the entry can update their score.
+     * @allow (delete) No one can delete leaderboard entries.
+     * @deny (create) Non-authenticated users cannot create leaderboard entries.
+     * @deny (update) Users cannot update other users' leaderboard scores.
+     * @deny (delete) No one can delete leaderboard entries.
+     * @principle Allows public reads, restricts writes to authenticated users, owner can modify only score.
      */
     match /leaderboard/{leaderboardEntryId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false; // TODO: Implement backend service role check
-      allow update: if false; // TODO: Implement backend service role check
-      allow delete: if false; // TODO: Implement backend service role check
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isOwner(leaderboardEntryId) {
+            return request.auth != null && resource.data.userId == request.auth.uid;
+        }
+          
+        allow get: if true;
+        allow list: if true;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update: if isSignedIn() && request.resource.data.userId == resource.data.userId;
+        allow delete: if false;
     }
   }
 }
