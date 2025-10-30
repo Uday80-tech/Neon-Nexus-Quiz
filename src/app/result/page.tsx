@@ -210,7 +210,7 @@ function ResultPageContent() {
               Score: {scorePercentage}%
             </div>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-              <Link href="/topics" passHref>
+              <Link href="/?action=start_quiz" passHref>
                 <Button size="lg"><RefreshCw className="mr-2" /> Play Another</Button>
               </Link>
               <Link href="/" passHref>

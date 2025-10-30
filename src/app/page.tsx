@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,10 +25,17 @@ const formSchema = z.object({
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isQuizDialogOpen, setIsQuizDialogOpen] = useState(false);
   const [isTrainingDialogOpen, setIsTrainingDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'start_quiz') {
+      setIsQuizDialogOpen(true);
+    }
+  }, [searchParams]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
