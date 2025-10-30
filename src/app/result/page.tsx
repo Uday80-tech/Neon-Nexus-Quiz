@@ -11,14 +11,17 @@ import { adjustQuizDifficulty, AdjustQuizDifficultyOutput } from '@/ai/flows/adj
 import { suggestPersonalizedLearningPaths, SuggestPersonalizedLearningPathsOutput } from '@/ai/flows/suggest-personalized-learning-paths';
 import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from '@/ai/flows/suggest-personalized-learning-paths';
 
-import { addDocumentNonBlocking, useFirestore, useUser } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { BrainCircuit, Home, Link as LinkIcon, Loader2, RefreshCw, Sparkles, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 // This is the core component that contains all the logic.
 // It's wrapped in a Suspense boundary in the main export.
@@ -26,6 +29,7 @@ function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { width, height } = useWindowSize();
+  const { toast } = useToast();
 
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -60,28 +64,52 @@ function ResultPageContent() {
 
   useEffect(() => {
     // Save quiz results to Firestore once
-    if (user && firestore && total > 0 && !isDataSaved) {
-      const historyData = {
-        topic: topic,
-        score: scorePercentage,
-        totalQuestions: total,
-        completionTime: 0,
-        completedAt: serverTimestamp(),
-        date: new Date().toISOString(),
-      };
-      
-      const leaderboardData = {
-        userId: user.displayName || user.email || 'Anonymous',
-        score: scorePercentage,
-        timestamp: serverTimestamp(),
-      };
+    const saveResults = async () => {
+      if (user && firestore && total > 0 && !isDataSaved) {
+        // Save private quiz history
+        const historyData = {
+          topic: topic,
+          score: scorePercentage,
+          totalQuestions: total,
+          completionTime: 0, 
+          completedAt: serverTimestamp(),
+          date: new Date().toISOString(),
+        };
+        addDocumentNonBlocking(collection(firestore, `users/${user.uid}/quizHistory`), historyData);
 
-      addDocumentNonBlocking(collection(firestore, `users/${user.uid}/quizHistory`), historyData);
-      addDocumentNonBlocking(collection(firestore, 'leaderboard'), leaderboardData);
-      
-      setIsDataSaved(true);
-    }
-  }, [user, firestore, topic, total, isDataSaved, scorePercentage]);
+        // Update public leaderboard score
+        const leaderboardRef = doc(firestore, 'leaderboard', user.uid);
+        try {
+          const leaderboardSnap = await getDoc(leaderboardRef);
+          let newTotalScore = score;
+          
+          if (leaderboardSnap.exists()) {
+            newTotalScore += leaderboardSnap.data().totalScore || 0;
+          }
+
+          const leaderboardData = {
+            userId: user.displayName || user.email,
+            totalScore: newTotalScore,
+            lastPlayed: serverTimestamp(),
+          };
+          
+          // Use setDoc with merge to create or update the leaderboard entry
+          await setDoc(leaderboardRef, leaderboardData, { merge: true });
+
+        } catch (error) {
+           console.error("Failed to update leaderboard:", error);
+           toast({
+             variant: "destructive",
+             title: "Leaderboard Error",
+             description: "Could not update your score on the leaderboard.",
+           });
+        }
+        
+        setIsDataSaved(true);
+      }
+    };
+    saveResults();
+  }, [user, firestore, topic, total, isDataSaved, scorePercentage, score, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -161,7 +189,7 @@ function ResultPageContent() {
               <span className="text-4xl font-bold text-muted-foreground"> / {total}</span>
             </div>
             <div className="w-4/5 mx-auto bg-primary/20 text-primary font-bold text-xl rounded-full px-4 py-2">
-              Final Score: {scorePercentage}%
+              Score: {scorePercentage}%
             </div>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
               <Link href="/topics" passHref>
@@ -243,3 +271,5 @@ export default function ResultPage() {
     </Suspense>
   );
 }
+
+    

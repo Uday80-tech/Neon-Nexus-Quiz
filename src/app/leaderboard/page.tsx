@@ -1,3 +1,4 @@
+
 'use client';
 import {
   Table,
@@ -24,7 +25,7 @@ export default function LeaderboardPage() {
       firestore
         ? query(
             collection(firestore, 'leaderboard'),
-            orderBy('score', 'desc'),
+            orderBy('totalScore', 'desc'),
             limit(10)
           )
         : null,
@@ -55,7 +56,7 @@ export default function LeaderboardPage() {
                 <TableRow>
                   <TableHead className="w-[80px]">Rank</TableHead>
                   <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
+                  <TableHead className="text-right">Total Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -81,12 +82,12 @@ export default function LeaderboardPage() {
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${entry.userId}`} />
-                            <AvatarFallback>{entry.userId.charAt(0)}</AvatarFallback>
+                            <AvatarFallback>{entry.userId ? entry.userId.charAt(0) : 'A'}</AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{entry.userId}</span>
+                          <span className="font-medium">{entry.userId || 'Anonymous'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg text-primary">{entry.score.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-bold text-lg text-primary">{entry.totalScore.toLocaleString()}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -99,3 +100,5 @@ export default function LeaderboardPage() {
     </div>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -36,7 +37,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "QuizHistory",
       "type": "object",
-      "description": "Stores the history of quizzes taken by a user.",
+      "description": "Stores the history of quizzes taken by a user. This data is private to the user.",
       "properties": {
         "id": {
           "type": "string",
@@ -52,7 +53,7 @@
         },
         "score": {
           "type": "number",
-          "description": "The user's score on the quiz."
+          "description": "The user's score on the quiz (as a percentage)."
         },
         "completionTime": {
           "type": "number",
@@ -69,7 +70,6 @@
         "userId",
         "topic",
         "score",
-        "completionTime",
         "completedAt"
       ]
     },
@@ -115,31 +115,31 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LeaderboardEntry",
       "type": "object",
-      "description": "Represents a single entry on the leaderboard.",
+      "description": "Represents a single user's cumulative entry on the leaderboard.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the leaderboard entry."
-        },
         "userId": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N LeaderboardEntry)"
+          "description": "The user's ID, also the document ID."
         },
-        "score": {
-          "type": "number",
-          "description": "The user's score for this leaderboard entry."
-        },
-        "timestamp": {
+        "username": {
           "type": "string",
-          "description": "Timestamp indicating when the score was achieved.",
+          "description": "The user's display name."
+        },
+        "totalScore": {
+          "type": "number",
+          "description": "The user's cumulative score across all quizzes."
+        },
+        "lastPlayed": {
+          "type": "string",
+          "description": "Timestamp indicating when the user last completed a quiz.",
           "format": "date-time"
         }
       },
       "required": [
-        "id",
         "userId",
-        "score",
-        "timestamp"
+        "username",
+        "totalScore",
+        "lastPlayed"
       ]
     }
   },
@@ -175,7 +175,7 @@
           "schema": {
             "$ref": "#/backend/entities/QuizHistory"
           },
-          "description": "Stores quiz history for each user. Path-based ownership enforces that only the user can access their own quiz history.",
+          "description": "Stores private quiz history for each user. Path-based ownership enforces that only the user can access their own quiz history.",
           "params": [
             {
               "name": "userId",
@@ -205,22 +205,24 @@
         }
       },
       {
-        "path": "/leaderboard/{leaderboardEntryId}",
+        "path": "/leaderboard/{userId}",
         "definition": {
           "entityName": "LeaderboardEntry",
           "schema": {
             "$ref": "#/backend/entities/LeaderboardEntry"
           },
-          "description": "Stores leaderboard entries. Read access is public, but write access is restricted.",
+          "description": "Stores a user's cumulative leaderboard score. The document ID is the user's ID. Read access is public, but only the user can update their own score.",
           "params": [
             {
-              "name": "leaderboardEntryId",
-              "description": "The unique ID of the leaderboard entry."
+              "name": "userId",
+              "description": "The unique ID of the user, which is also the document ID for the leaderboard entry."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to prioritize authorization independence, clarity, and scalability for the Brain Battle quiz game. We leverage path-based ownership for user-specific data and avoid `get()` calls in security rules by denormalizing authorization data where necessary. \n\n*   **/users/{userId}:** Stores user profiles.  This collection utilizes path-based ownership, which means that only the authenticated user with the matching `userId` can access their own document. This structure is secure and efficient.\n*   **/users/{userId}/quizHistory/{quizHistoryId}:** Stores the quiz history for each user. This follows path-based ownership, providing straightforward security rules. The `quizHistory` subcollection is nested under the `users` collection, thus creating a hierarchy and enabling the app to efficiently query a user's quiz history based on the user's ID.\n*   **/leaderboard/{leaderboardEntryId}:** Stores leaderboard entries. This collection is globally accessible for reading to display the leaderboard, but write access is restricted to authorized users (e.g., via a Cloud Function after a game completion) to prevent tampering.  Authorization Independence: There's no reliance on parent document data to authorize access to the leaderboard entries themselves. This simplifies security rules and maintains atomicity.\n*   **/questions/{questionId}:** Stores quiz questions. This collection is globally readable, but write access is restricted to authorized admin users. This segregation ensures that only authorized individuals can modify the question data.  Authorization Independence:  Since questions are globally readable, there's no dependency on parent documents for access control.  This is crucial for efficient querying and reduces the complexity of security rules.\n\nThis structure allows for efficient querying of user data, quiz history, and leaderboard information, while ensuring data integrity and security."
+    "reasoning": "The Firestore structure is designed to prioritize authorization independence, clarity, and scalability for the Brain Battle quiz game. We leverage path-based ownership for user-specific data and avoid `get()` calls in security rules by denormalizing authorization data where necessary. \n\n*   **/users/{userId}:** Stores user profiles.  This collection utilizes path-based ownership, which means that only the authenticated user with the matching `userId` can access their own document. This structure is secure and efficient.\n*   **/users/{userId}/quizHistory/{quizHistoryId}:** Stores the quiz history for each user. This is private data. This follows path-based ownership, providing straightforward security rules. The `quizHistory` subcollection is nested under the `users` collection, thus creating a hierarchy and enabling the app to efficiently query a user's quiz history based on the user's ID.\n*   **/leaderboard/{userId}:** Stores a user's cumulative leaderboard entry, using the user's ID as the document ID to ensure one entry per user. This collection is globally accessible for reading to display the leaderboard, but write access is restricted to the user who owns the score to prevent tampering.\n*   **/questions/{questionId}:** Stores quiz questions. This collection is globally readable, but write access is restricted to authorized admin users. This segregation ensures that only authorized individuals can modify the question data."
   }
 }
+
+    
