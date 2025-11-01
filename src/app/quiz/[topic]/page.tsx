@@ -49,7 +49,7 @@ export default function QuizPage({ params }: { params: { topic: string } }) {
       }
       setIsLoading(false);
     }
-  }, [params.topic, router]);
+  }, [params, router]);
 
   if (isLoading) {
     return (
