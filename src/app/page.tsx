@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,7 +23,7 @@ const formSchema = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']),
 });
 
-export default function Home() {
+function HomePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -333,3 +333,14 @@ export default function Home() {
     </div>
   );
 }
+
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+      <HomePageClient />
+    </Suspense>
+  );
+}
+
+    
