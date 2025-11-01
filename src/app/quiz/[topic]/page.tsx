@@ -3,7 +3,7 @@
 
 import { questions, topics } from '@/lib/quiz-data';
 import QuizClient from '@/components/quiz/QuizClient';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound, useRouter, useParams } from 'next/navigation';
 import type { Question } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -11,14 +11,15 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 
-export default function QuizPage({ params }: { params: { topic: string } }) {
+export default function QuizPage() {
+  const params = useParams();
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
   const [topicData, setTopicData] = useState<Omit<import('@/lib/types').Topic, 'icon'> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   
   useEffect(() => {
-    const currentTopic = params.topic;
+    const currentTopic = params.topic as string;
 
     if (currentTopic) {
       if (currentTopic === 'custom' || currentTopic === 'custom-training') {
