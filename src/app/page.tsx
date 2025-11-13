@@ -77,9 +77,9 @@ function HomePageClient() {
         throw new Error('The AI failed to generate questions for this topic.');
       }
 
-      sessionStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
+      localStorage.setItem('quizQuestions', JSON.stringify(quizResult.questions));
       const topicData = { name: values.topic, slug: 'custom', difficulty: values.difficulty };
-      sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
+      localStorage.setItem('quizTopic', JSON.stringify(topicData));
       
       setIsQuizDialogOpen(false);
       router.push('/quiz/custom');
@@ -118,12 +118,12 @@ function HomePageClient() {
         throw new Error('The AI failed to generate a training plan for this topic.');
       }
 
-      sessionStorage.setItem('quizQuestions', JSON.stringify(trainingResult.questions));
+      localStorage.setItem('quizQuestions', JSON.stringify(trainingResult.questions));
       const topicData = { name: `Training: ${values.topic}`, slug: 'custom-training', difficulty: values.difficulty };
-      sessionStorage.setItem('quizTopic', JSON.stringify(topicData));
+      localStorage.setItem('quizTopic', JSON.stringify(topicData));
       
       if(trainingResult.suggestedResources && trainingResult.suggestedResources.length > 0) {
-        sessionStorage.setItem('learningResources', JSON.stringify(trainingResult.suggestedResources));
+        localStorage.setItem('learningResources', JSON.stringify(trainingResult.suggestedResources));
       }
       
       setIsTrainingDialogOpen(false);

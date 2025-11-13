@@ -23,15 +23,15 @@ export default function QuizPage() {
 
     if (currentTopic) {
       if (currentTopic === 'custom' || currentTopic === 'custom-training') {
-        const storedQuestions = sessionStorage.getItem('quizQuestions');
-        const storedTopic = sessionStorage.getItem('quizTopic');
+        const storedQuestions = localStorage.getItem('quizQuestions');
+        const storedTopic = localStorage.getItem('quizTopic');
         
         if (storedQuestions && storedTopic) {
           try {
             setQuizQuestions(JSON.parse(storedQuestions));
             setTopicData(JSON.parse(storedTopic));
           } catch (e) {
-            console.error("Failed to parse session storage data", e);
+            console.error("Failed to parse localStorage data", e);
             router.push('/');
             return;
           }

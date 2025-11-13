@@ -54,13 +54,13 @@ function ResultPageContent() {
   const topicName = useMemo(() => {
     if (topicSlug === 'custom' || topicSlug === 'custom-training') {
       try {
-        const storedTopic = sessionStorage.getItem('quizTopic');
+        const storedTopic = localStorage.getItem('quizTopic');
         if (storedTopic) {
           const parsedTopic = JSON.parse(storedTopic);
           return parsedTopic.name || topicSlug;
         }
       } catch (error) {
-        console.error("Could not parse quizTopic from sessionStorage:", error);
+        console.error("Could not parse quizTopic from localStorage:", error);
       }
     }
     const staticTopic = staticTopics.find(t => t.slug === topicSlug);
@@ -156,14 +156,17 @@ function ResultPageContent() {
     }
 
     // Check for session-based learning resources (from training plans)
-    const storedResources = sessionStorage.getItem('learningResources');
+    const storedResources = localStorage.getItem('learningResources');
     if (storedResources) {
       try {
         setSessionLearningResources(JSON.parse(storedResources));
       } catch (e) {
-        console.error("Failed to parse learning resources from session storage:", e);
+        console.error("Failed to parse learning resources from localStorage:", e);
       } finally {
-        sessionStorage.removeItem('learningResources');
+        localStorage.removeItem('learningResources');
+        // also remove quiz data
+        localStorage.removeItem('quizQuestions');
+        localStorage.removeItem('quizTopic');
       }
     }
     
@@ -295,5 +298,3 @@ export default function ResultPage() {
     </Suspense>
   );
 }
-
-
