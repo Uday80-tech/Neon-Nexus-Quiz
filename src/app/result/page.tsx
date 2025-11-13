@@ -72,18 +72,11 @@ function ResultPageContent() {
   const scorePercentage = useMemo(() => Math.round(performance * 100), [performance]);
 
   // --- Effects ---
-
-  useEffect(() => {
-    // Redirect to login if user is not available after loading
-    if (!isUserLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isUserLoading, router]);
-
   useEffect(() => {
     // Save quiz results to Firestore once
     const saveResults = async () => {
-      if (user && firestore && total > 0 && !isDataSaved) {
+      // Only run if user is loaded and present, and data hasn't been saved yet.
+      if (user && !isUserLoading && firestore && total > 0 && !isDataSaved) {
         setIsDataSaved(true); // Mark as saved immediately to prevent re-runs
         
         // Save private quiz history
@@ -128,7 +121,7 @@ function ResultPageContent() {
       }
     };
     saveResults();
-  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
+  }, [user, isUserLoading, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -189,12 +182,17 @@ function ResultPageContent() {
 
   const learningResources = sessionLearningResources || aiLearningPath?.suggestedResources;
 
-  if (isUserLoading || !user) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
+  if (total === 0 && !topicSlug) {
+      // This can happen if the page is visited directly without params.
+      // Redirecting to home might be a good user experience.
+      if (typeof window !== 'undefined') {
+        router.push('/');
+      }
+      return (
+        <div className="flex-1 flex items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      );
   }
 
   return (
