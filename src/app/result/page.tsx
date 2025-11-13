@@ -84,6 +84,8 @@ function ResultPageContent() {
     // Save quiz results to Firestore once
     const saveResults = async () => {
       if (user && firestore && total > 0 && !isDataSaved) {
+        setIsDataSaved(true); // Mark as saved immediately to prevent re-runs
+        
         // Save private quiz history
         const historyData = {
           topic: topicName,
@@ -106,7 +108,8 @@ function ResultPageContent() {
           }
 
           const leaderboardData = {
-            userId: user.displayName || user.email || 'Anonymous',
+            userId: user.uid,
+            username: user.displayName || user.email || 'Anonymous',
             totalScore: newTotalScore,
             lastPlayed: serverTimestamp(),
           };
@@ -122,12 +125,10 @@ function ResultPageContent() {
              description: "Could not update your score on the leaderboard.",
            });
         }
-        
-        setIsDataSaved(true);
       }
     };
     saveResults();
-  }, [user, firestore, topicName, total, isDataSaved, scorePercentage, score, toast]);
+  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -157,8 +158,13 @@ function ResultPageContent() {
     // Check for session-based learning resources (from training plans)
     const storedResources = sessionStorage.getItem('learningResources');
     if (storedResources) {
-      setSessionLearningResources(JSON.parse(storedResources));
-      sessionStorage.removeItem('learningResources');
+      try {
+        setSessionLearningResources(JSON.parse(storedResources));
+      } catch (e) {
+        console.error("Failed to parse learning resources from session storage:", e);
+      } finally {
+        sessionStorage.removeItem('learningResources');
+      }
     }
     
   }, [performance, difficulty, topicName, total, score, scorePercentage]);
@@ -180,7 +186,7 @@ function ResultPageContent() {
 
   const learningResources = sessionLearningResources || aiLearningPath?.suggestedResources;
 
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -289,3 +295,5 @@ export default function ResultPage() {
     </Suspense>
   );
 }
+
+    
