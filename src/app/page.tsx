@@ -65,7 +65,12 @@ function HomePageClient() {
       });
 
       if (quizResult.error) {
-        throw new Error(quizResult.error);
+        toast({
+          variant: 'destructive',
+          title: 'Error Generating Quiz',
+          description: quizResult.error,
+        });
+        return;
       }
       
       if (!quizResult.questions || quizResult.questions.length === 0) {
@@ -101,7 +106,12 @@ function HomePageClient() {
       });
 
       if (trainingResult.error) {
-        throw new Error(trainingResult.error);
+        toast({
+          variant: 'destructive',
+          title: 'Error Generating Training Plan',
+          description: trainingResult.error,
+        });
+        return;
       }
       
       if (!trainingResult.questions || trainingResult.questions.length === 0) {
@@ -342,5 +352,3 @@ export default function Home() {
     </Suspense>
   );
 }
-
-    
