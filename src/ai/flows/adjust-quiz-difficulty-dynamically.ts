@@ -4,7 +4,7 @@
  *
  * - adjustQuizDifficulty - A function that adjusts the quiz difficulty based on user performance.
  * - AdjustQuizDifficultyInput - The input type for the adjustQuizDifficulty function.
- * - AdjustQuizDifficultyOutput - The return type for the adjustQuizDifficulty function.
+ * - AdjustQuizDifficultyOutput - The return type for the adjustQuizdifficulty function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -25,12 +25,13 @@ export type AdjustQuizDifficultyInput = z.infer<typeof AdjustQuizDifficultyInput
 const AdjustQuizDifficultyOutputSchema = z.object({
   suggestedDifficulty: z
     .enum(['easy', 'medium', 'hard'])
-    .describe('The suggested difficulty level for the next quiz.'),
+    .describe('The suggested difficulty level for the next quiz.').optional(),
   reason: z
     .string()
     .describe(
       'The reasoning behind the suggested difficulty level adjustment.'
-    ),
+    ).optional(),
+  error: z.string().optional(),
 });
 export type AdjustQuizDifficultyOutput = z.infer<typeof AdjustQuizDifficultyOutputSchema>;
 
@@ -57,7 +58,15 @@ const adjustQuizDifficultyFlow = ai.defineFlow(
     outputSchema: AdjustQuizDifficultyOutputSchema,
   },
   async input => {
-    const {output} = await adjustQuizDifficultyPrompt(input);
-    return output!;
+    try {
+      const {output} = await adjustQuizDifficultyPrompt(input);
+      return output!;
+    } catch (e: any) {
+      if (e.message.includes('503')) {
+        return { error: 'The AI model is currently overloaded. Please try again in a few moments.' };
+      }
+      console.error(e);
+      return { error: 'An unexpected error occurred while adjusting difficulty.' };
+    }
   }
 );

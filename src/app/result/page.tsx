@@ -128,7 +128,7 @@ function ResultPageContent() {
       }
     };
     saveResults();
-  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
+  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast, router]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -242,7 +242,7 @@ function ResultPageContent() {
                 <div>
                   <h3 className="font-semibold flex items-center gap-2"><Target /> Next Challenge</h3>
                   <Separator className="my-2" />
-                  {aiDifficulty ? (
+                  {aiDifficulty && !aiDifficulty.error ? (
                      <>
                       <p className="mt-2 text-muted-foreground">{aiDifficulty.reason}</p>
                       <p className="mt-2">Suggested level: <span className={cn('font-bold capitalize px-2 py-1 rounded-md', 
@@ -252,7 +252,7 @@ function ResultPageContent() {
                         )}>{aiDifficulty.suggestedDifficulty}</span></p>
                     </>
                   ) : (
-                    <p className="text-muted-foreground text-sm">Could not generate difficulty suggestion.</p>
+                    <p className="text-muted-foreground text-sm">{aiDifficulty?.error || 'Could not generate difficulty suggestion.'}</p>
                   )}
                 </div>
 
@@ -271,7 +271,7 @@ function ResultPageContent() {
                       ))}
                     </ul>
                   ) : (
-                     <p className="text-muted-foreground text-sm">No specific learning resources to suggest. Great job!</p>
+                     <p className="text-muted-foreground text-sm">{aiLearningPath?.error || 'No specific learning resources to suggest. Great job!'}</p>
                   )}
                 </div>
               </div>
@@ -296,4 +296,3 @@ export default function ResultPage() {
   );
 }
 
-    
