@@ -33,7 +33,8 @@ const SuggestPersonalizedLearningPathsOutputSchema = z.object({
       resourceLink: z.string(),
       reason: z.string(),
     })
-  ).describe('A list of suggested learning resources, including topic, name, link, and reason for suggestion.'),
+  ).describe('A list of suggested learning resources, including topic, name, link, and reason for suggestion.').optional(),
+  error: z.string().optional(),
 });
 export type SuggestPersonalizedLearningPathsOutput = z.infer<typeof SuggestPersonalizedLearningPathsOutputSchema>;
 
@@ -69,7 +70,15 @@ const suggestPersonalizedLearningPathsFlow = ai.defineFlow(
     outputSchema: SuggestPersonalizedLearningPathsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      const {output} = await prompt(input);
+      return output!;
+    } catch (e: any) {
+      if (e.message.includes('503')) {
+        return { error: 'The AI model is currently overloaded. Please try again in a few moments.' };
+      }
+      console.error(e);
+      return { error: 'An unexpected error occurred while generating learning paths.' };
+    }
   }
 );
