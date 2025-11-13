@@ -4,7 +4,7 @@ import {
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   UserCredential,
   // Assume getAuth and app are initialized elsewhere
@@ -31,8 +31,8 @@ export function initiateEmailSignIn(authInstance: Auth, email: string, password:
   // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
 
-/** Initiate Google sign-in with a popup. */
-export function initiateGoogleSignIn(authInstance: Auth): Promise<UserCredential> {
+/** Initiate Google sign-in with a redirect. */
+export function initiateGoogleSignIn(authInstance: Auth): Promise<void> {
   const provider = new GoogleAuthProvider();
-  return signInWithPopup(authInstance, provider);
+  return signInWithRedirect(authInstance, provider);
 }

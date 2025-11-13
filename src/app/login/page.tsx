@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -28,6 +29,8 @@ import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocki
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from 'firebase/app';
 import { Separator } from "@/components/ui/separator";
+import { getRedirectResult } from "firebase/auth";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -66,7 +69,29 @@ export default function LoginPage() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const [isCheckingRedirect, setIsCheckingRedirect] = useState(true);
 
+
+  useEffect(() => {
+    if (!auth) return;
+    
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          // User successfully signed in.
+          router.push("/");
+        }
+      })
+      .catch((error) => {
+        // Handle Errors here.
+        handleAuthError(error);
+      })
+      .finally(() => {
+        setIsCheckingRedirect(false);
+      });
+      
+  }, [auth, router]);
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -87,12 +112,9 @@ export default function LoginPage() {
 
   async function handleGoogleSignIn() {
     if (!auth) return;
-    try {
-      await initiateGoogleSignIn(auth);
-      router.push("/");
-    } catch (error: any) {
-      handleAuthError(error);
-    }
+    // initiateGoogleSignIn now returns a promise that might not resolve if redirect is successful
+    // We don't need to catch here as errors will be handled by getRedirectResult
+    initiateGoogleSignIn(auth).catch(handleAuthError);
   }
 
   function handleAuthError(error: any) {
@@ -121,6 +143,18 @@ export default function LoginPage() {
       title: "Login Failed",
       description,
     });
+  }
+
+  if (isCheckingRedirect) {
+    return (
+      <div className="relative flex-1 flex items-center justify-center p-4">
+        <ThreeScene />
+        <div className="z-10 flex flex-col items-center gap-4 text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary"/>
+            <p className="text-foreground/80">Checking authentication status...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
