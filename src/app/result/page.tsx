@@ -128,7 +128,7 @@ function ResultPageContent() {
       }
     };
     saveResults();
-  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast, router]);
+  }, [user, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
@@ -295,4 +295,5 @@ export default function ResultPage() {
     </Suspense>
   );
 }
+
 
