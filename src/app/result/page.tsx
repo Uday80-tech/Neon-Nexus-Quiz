@@ -2,7 +2,7 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import useWindowSize from 'react-use/lib/useWindowSize';
 import Confetti from 'react-confetti';
 import Link from 'next/link';
@@ -13,8 +13,6 @@ import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from
 
 import { useFirestore, useUser } from '@/firebase';
 import { collection, serverTimestamp, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +35,9 @@ function ResultPageContent() {
 
   const [showConfetti, setShowConfetti] = useState(true);
   const [isAiLoading, setIsAiLoading] = useState(true);
-  const [isDataSaved, setIsDataSaved] = useState(false);
+  
+  // Use a ref to ensure the save operation only runs once, even in React StrictMode
+  const saveTriggered = useRef(false);
   
   const [aiDifficulty, setAiDifficulty] = useState<AdjustQuizDifficultyOutput | null>(null);
   const [aiLearningPath, setAiLearningPath] = useState<SuggestPersonalizedLearningPathsOutput | null>(null);
@@ -73,11 +73,12 @@ function ResultPageContent() {
 
   // --- Effects ---
   useEffect(() => {
-    // Save quiz results to Firestore once
+    // Save quiz results to Firestore once.
     const saveResults = async () => {
-      // Only run if user is loaded and present, and data hasn't been saved yet.
-      if (user && !isUserLoading && firestore && total > 0 && !isDataSaved) {
-        setIsDataSaved(true); // Mark as saved immediately to prevent re-runs
+      // Only run if user is loaded, present, data is valid, and save hasn't been triggered.
+      if (user && !isUserLoading && firestore && total > 0 && !saveTriggered.current) {
+        // Immediately mark as triggered to prevent re-runs from React StrictMode.
+        saveTriggered.current = true;
         
         try {
             const batch = writeBatch(firestore);
@@ -116,8 +117,9 @@ function ResultPageContent() {
             await batch.commit();
 
         } catch (error) {
-           // If it fails, reset the flag so it can be tried again on a re-render
-           setIsDataSaved(false);
+           // If it fails, allow it to be tried again on a re-render by not setting the flag.
+           // However, for this specific flow, we reset the ref to false to allow retry
+           saveTriggered.current = false;
            console.error("Failed to save results:", error);
            toast({
              variant: "destructive",
@@ -128,7 +130,7 @@ function ResultPageContent() {
       }
     };
     saveResults();
-  }, [user, isUserLoading, firestore, topicName, total, score, scorePercentage, isDataSaved, toast]);
+  }, [user, isUserLoading, firestore, topicName, total, score, scorePercentage, toast]);
 
   useEffect(() => {
     // Fetch AI feedback
