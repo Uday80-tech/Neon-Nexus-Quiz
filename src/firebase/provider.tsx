@@ -11,6 +11,7 @@ interface FirebaseProviderProps {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
+  isInitializing: boolean; // New prop to track global initialization
 }
 
 // Internal state for user authentication
@@ -26,6 +27,7 @@ export interface FirebaseContextState {
   firebaseApp: FirebaseApp | null;
   firestore: Firestore | null;
   auth: Auth | null; // The Auth service instance
+  isInitializing: boolean; // Global initialization status
   // User authentication state
   user: User | null;
   isUserLoading: boolean; // True during initial auth check
@@ -39,6 +41,7 @@ export interface FirebaseServicesAndUser {
   auth: Auth;
   user: User | null;
   isUserLoading: boolean;
+  isInitializing: boolean; // Expose global initialization status
   userError: Error | null;
 }
 
@@ -46,6 +49,7 @@ export interface FirebaseServicesAndUser {
 export interface UserHookResult { // Renamed from UserAuthHookResult for consistency if desired, or keep as UserAuthHookResult
   user: User | null;
   isUserLoading: boolean;
+  isInitializing: boolean;
   userError: Error | null;
 }
 
@@ -60,6 +64,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firebaseApp,
   firestore,
   auth,
+  isInitializing, // Receive global initialization status
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
@@ -74,8 +79,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
-
+    // Don't reset user loading state here, let onAuthStateChanged handle it
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => { // Auth state determined
@@ -97,11 +101,13 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       firebaseApp: servicesAvailable ? firebaseApp : null,
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
+      isInitializing, // Pass down the global initialization status
       user: userAuthState.user,
-      isUserLoading: userAuthState.isUserLoading,
+      // Combine global init with user loading
+      isUserLoading: isInitializing || userAuthState.isUserLoading,
       userError: userAuthState.userError,
     };
-  }, [firebaseApp, firestore, auth, userAuthState]);
+  }, [firebaseApp, firestore, auth, userAuthState, isInitializing]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -132,6 +138,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     auth: context.auth,
     user: context.user,
     isUserLoading: context.isUserLoading,
+    isInitializing: context.isInitializing,
     userError: context.userError,
   };
 };
@@ -170,7 +177,7 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
  * This provides the User object, loading status, and any auth errors.
  * @returns {UserHookResult} Object with user, isUserLoading, userError.
  */
-export const useUser = (): UserHookResult => { // Renamed from useAuthUser
-  const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
-  return { user, isUserLoading, userError };
+export const useUser = (): UserHookResult => {
+  const { user, isUserLoading, userError, isInitializing } = useFirebase();
+  return { user, isUserLoading, userError, isInitializing };
 };

@@ -1,8 +1,11 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { Header } from '@/components/Header';
 import { FirebaseClientProvider } from '@/firebase';
+import React from 'react';
+import AppContent from '@/components/AppContent';
 
 export const metadata: Metadata = {
   title: 'Neon Nexus Quiz',
@@ -24,7 +27,9 @@ export default function RootLayout({
       <body className="font-body antialiased min-h-screen flex flex-col">
         <FirebaseClientProvider>
           <Header />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <main className="flex-1 flex flex-col">
+            <AppContent>{children}</AppContent>
+          </main>
           <Toaster />
         </FirebaseClientProvider>
       </body>

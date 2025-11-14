@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -25,12 +25,9 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import ThreeScene from "@/components/ThreeScene";
-import { initiateEmailSignIn, initiateGoogleSignIn, setDocumentNonBlocking } from "@/firebase/non-blocking-login";
+import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from 'firebase/app';
-import { Separator } from "@/components/ui/separator";
-import { getRedirectResult, getAdditionalUserInfo } from "firebase/auth";
-import { doc, serverTimestamp } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -68,40 +65,9 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function LoginPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
+  const { user, isInitializing } = useUser();
   const router = useRouter();
   const { toast } = useToast();
-  const [isCheckingRedirect, setIsCheckingRedirect] = useState(true);
-
-
-  useEffect(() => {
-    if (!auth || !firestore) return;
-    
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          const user = result.user;
-          const additionalUserInfo = getAdditionalUserInfo(result);
-          
-          if (additionalUserInfo?.isNewUser) {
-              const userRef = doc(firestore, `users/${user.uid}`);
-              setDocumentNonBlocking(userRef, {
-                  username: user.displayName || user.email,
-                  email: user.email,
-                  createdAt: serverTimestamp(),
-              }, { merge: true });
-          }
-          router.push("/");
-        }
-      })
-      .catch((error) => {
-        handleAuthError(error);
-      })
-      .finally(() => {
-        setIsCheckingRedirect(false);
-      });
-      
-  }, [auth, firestore, router]);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -111,18 +77,23 @@ export default function LoginPage() {
     },
   });
 
+  useEffect(() => {
+    if (!isInitializing && user) {
+      router.push("/");
+    }
+  }, [user, isInitializing, router]);
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!auth) return;
     try {
       await initiateEmailSignIn(auth, values.email, values.password);
-      router.push("/");
+      // The onAuthStateChanged listener will handle the redirect
     } catch (error: any) {
       handleAuthError(error);
     }
   }
 
   async function handleGoogleSignIn() {
-    if (!auth) return;
+    // The redirect will navigate away. The result is handled in FirebaseClientProvider
     initiateGoogleSignIn(auth).catch(handleAuthError);
   }
 
@@ -153,14 +124,13 @@ export default function LoginPage() {
       description,
     });
   }
-
-  if (isCheckingRedirect) {
-    return (
+  
+  if (isInitializing) {
+     return (
       <div className="relative flex-1 flex items-center justify-center p-4">
         <ThreeScene />
         <div className="z-10 flex flex-col items-center gap-4 text-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary"/>
-            <p className="text-foreground/80">Checking authentication status...</p>
         </div>
       </div>
     )
@@ -205,7 +175,8 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Login
               </Button>
             </form>
