@@ -9,6 +9,33 @@ import {
   UserCredential,
   // Assume getAuth and app are initialized elsewhere
 } from 'firebase/auth';
+import {
+  setDoc,
+  DocumentReference,
+  SetOptions,
+} from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import {FirestorePermissionError} from '@/firebase/errors';
+
+
+/**
+ * Initiates a setDoc operation for a document reference.
+ * Does NOT await the write operation internally.
+ */
+export function setDocumentNonBlocking(docRef: DocumentReference, data: any, options: SetOptions) {
+  setDoc(docRef, data, options).catch(error => {
+    errorEmitter.emit(
+      'permission-error',
+      new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'write', // or 'create'/'update' based on options
+        requestResourceData: data,
+      })
+    )
+  })
+  // Execution continues immediately
+}
+
 
 /** Initiate anonymous sign-in (non-blocking). */
 export function initiateAnonymousSignIn(authInstance: Auth): void {

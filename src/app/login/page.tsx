@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -25,11 +25,12 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import ThreeScene from "@/components/ThreeScene";
-import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { initiateEmailSignIn, initiateGoogleSignIn, setDocumentNonBlocking } from "@/firebase/non-blocking-login";
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from 'firebase/app';
 import { Separator } from "@/components/ui/separator";
-import { getRedirectResult } from "firebase/auth";
+import { getRedirectResult, getAdditionalUserInfo } from "firebase/auth";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -67,18 +68,30 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isCheckingRedirect, setIsCheckingRedirect] = useState(true);
 
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     
     getRedirectResult(auth)
       .then((result) => {
         if (result) {
-          // User successfully signed in.
+          const user = result.user;
+          const additionalUserInfo = getAdditionalUserInfo(result);
+          // If it's a new user, create their profile document in Firestore
+          if (additionalUserInfo?.isNewUser) {
+              const userRef = doc(firestore, `users/${user.uid}`);
+              setDocumentNonBlocking(userRef, {
+                  username: user.displayName || user.email,
+                  email: user.email,
+                  createdAt: serverTimestamp(),
+              }, { merge: true });
+          }
+          // User successfully signed in, now redirect
           router.push("/");
         }
       })
@@ -90,7 +103,7 @@ export default function LoginPage() {
         setIsCheckingRedirect(false);
       });
       
-  }, [auth, router]);
+  }, [auth, firestore, router]);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
