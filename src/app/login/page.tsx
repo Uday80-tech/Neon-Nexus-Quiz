@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -65,7 +66,7 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function LoginPage() {
   const auth = useAuth();
-  const { user, isInitializing } = useUser();
+  const { user, isUserLoading } = useUser(); // Changed from isInitializing to isUserLoading
   const router = useRouter();
   const { toast } = useToast();
   
@@ -78,15 +79,16 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    if (!isInitializing && user) {
+    // If the user object is available (not loading anymore) and exists, redirect.
+    if (!isUserLoading && user) {
       router.push("/");
     }
-  }, [user, isInitializing, router]);
+  }, [user, isUserLoading, router]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await initiateEmailSignIn(auth, values.email, values.password);
-      // The onAuthStateChanged listener will handle the redirect
+      // The onAuthStateChanged listener in FirebaseClientProvider will handle the redirect
     } catch (error: any) {
       handleAuthError(error);
     }
@@ -125,7 +127,9 @@ export default function LoginPage() {
     });
   }
   
-  if (isInitializing) {
+  // Render nothing or a minimal loader while waiting for the redirect from the provider to happen.
+  // This prevents the user from seeing the login form for a split second if they are already logged in.
+  if (isUserLoading || user) {
      return (
       <div className="relative flex-1 flex items-center justify-center p-4">
         <ThreeScene />
