@@ -12,7 +12,7 @@ import { suggestPersonalizedLearningPaths, SuggestPersonalizedLearningPathsOutpu
 import type { SuggestPersonalizedLearningPathsOutput as LearningResources } from '@/ai/flows/suggest-personalized-learning-paths';
 
 import { useFirestore, useUser } from '@/firebase';
-import { collection, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 
@@ -79,43 +79,50 @@ function ResultPageContent() {
       if (user && !isUserLoading && firestore && total > 0 && !isDataSaved) {
         setIsDataSaved(true); // Mark as saved immediately to prevent re-runs
         
-        // Save private quiz history
-        const historyData = {
-          topic: topicName,
-          score: scorePercentage,
-          totalQuestions: total,
-          completionTime: 0, 
-          completedAt: serverTimestamp(),
-          date: new Date().toISOString(),
-        };
-        addDocumentNonBlocking(collection(firestore, `users/${user.uid}/quizHistory`), historyData);
-
-        // Update public leaderboard score
-        const leaderboardRef = doc(firestore, 'leaderboard', user.uid);
         try {
-          const leaderboardSnap = await getDoc(leaderboardRef);
-          let newTotalScore = score;
-          
-          if (leaderboardSnap.exists()) {
-            newTotalScore += leaderboardSnap.data().totalScore || 0;
-          }
+            const batch = writeBatch(firestore);
 
-          const leaderboardData = {
-            userId: user.uid,
-            username: user.displayName || user.email || 'Anonymous',
-            totalScore: newTotalScore,
-            lastPlayed: serverTimestamp(),
-          };
-          
-          // Use setDoc with merge to create or update the leaderboard entry
-          await setDoc(leaderboardRef, leaderboardData, { merge: true });
+            // 1. Save private quiz history
+            const historyRef = doc(collection(firestore, `users/${user.uid}/quizHistory`));
+            const historyData = {
+              topic: topicName,
+              score: scorePercentage,
+              totalQuestions: total,
+              completionTime: 0, 
+              completedAt: serverTimestamp(),
+              date: new Date().toISOString(),
+            };
+            batch.set(historyRef, historyData);
+
+            // 2. Update public leaderboard score
+            const leaderboardRef = doc(firestore, 'leaderboard', user.uid);
+            const leaderboardSnap = await getDoc(leaderboardRef);
+            let newTotalScore = score;
+            
+            if (leaderboardSnap.exists()) {
+              newTotalScore += leaderboardSnap.data().totalScore || 0;
+            }
+
+            const leaderboardData = {
+              userId: user.uid,
+              username: user.displayName || user.email || 'Anonymous',
+              totalScore: newTotalScore,
+              lastPlayed: serverTimestamp(),
+            };
+            
+            batch.set(leaderboardRef, leaderboardData, { merge: true });
+            
+            // 3. Commit the batch
+            await batch.commit();
 
         } catch (error) {
-           console.error("Failed to update leaderboard:", error);
+           // If it fails, reset the flag so it can be tried again on a re-render
+           setIsDataSaved(false);
+           console.error("Failed to save results:", error);
            toast({
              variant: "destructive",
-             title: "Leaderboard Error",
-             description: "Could not update your score on the leaderboard.",
+             title: "Save Error",
+             description: "Could not save your quiz results.",
            });
         }
       }
