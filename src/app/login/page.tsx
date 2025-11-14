@@ -82,7 +82,7 @@ export default function LoginPage() {
         if (result) {
           const user = result.user;
           const additionalUserInfo = getAdditionalUserInfo(result);
-          // If it's a new user, create their profile document in Firestore
+          
           if (additionalUserInfo?.isNewUser) {
               const userRef = doc(firestore, `users/${user.uid}`);
               setDocumentNonBlocking(userRef, {
@@ -91,12 +91,10 @@ export default function LoginPage() {
                   createdAt: serverTimestamp(),
               }, { merge: true });
           }
-          // User successfully signed in, now redirect
           router.push("/");
         }
       })
       .catch((error) => {
-        // Handle Errors here.
         handleAuthError(error);
       })
       .finally(() => {
@@ -125,8 +123,6 @@ export default function LoginPage() {
 
   async function handleGoogleSignIn() {
     if (!auth) return;
-    // initiateGoogleSignIn now returns a promise that might not resolve if redirect is successful
-    // We don't need to catch here as errors will be handled by getRedirectResult
     initiateGoogleSignIn(auth).catch(handleAuthError);
   }
 
